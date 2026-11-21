@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Study Hub</title>
+  <link rel="stylesheet" href="/lib/katex.css">
+  <link rel="stylesheet" href="/theme.css">
+  <script defer src="/lib/markdown-it.js"></script>
+  <script defer src="/lib/katex.js"></script>
+  <script defer src="/lib/katex-auto.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="#home">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h20v18H6zM6 13h20M13 13v12M17 17h5M17 21h5"/></svg>
+        <span>Study Hub</span>
+      </a>
+      <div class="top-actions">
+        <span id="demo-tag" class="tag" hidden>Demo · temporary</span>
+        <label class="theme">
+          <span class="sr-only">Appearance</span>
+          <select id="theme">
+            <option value="paper">Warm Paper</option>
+            <option value="dark">Noctalia dark</option>
+            <option value="ink">High contrast</option>
+          </select>
+        </label>
+        <button class="button primary" id="open-import">Import pack</button>
+      </div>
+    </div>
+  </header>
+  <main id="main" tabindex="-1" aria-busy="true"><p>Opening Study Hub…</p></main>
+  <footer class="footer"><span>Local workspace</span><span id="grader-status">No cloud grading</span></footer>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <dialog id="import-dialog">
+    <div class="dialog-inner">
+      <header class="dialog-head"><h2>Import a study pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></header>
+      <p>Open a <strong>published</strong> problem-set folder. It contains <code>set.json</code> and any linked images.</p>
+      <div class="row">
+        <button class="button primary" id="pick-folder">Choose folder</button>
+        <button class="button" id="pick-file">Choose set.json only</button>
+      </div>
+      <input id="folder" type="file" webkitdirectory multiple hidden>
+      <input id="packet" type="file" accept=".json,application/json" hidden>
+      <p class="muted">The app checks the packet and copies its practice content. It leaves the original untouched.</p>
+      <p id="import-status" role="status" class="status"></p>
+    </div>
+  </dialog>
+  <dialog id="exam-dialog">
+    <form id="exam-form" class="dialog-inner">
+      <header class="dialog-head"><h2 id="exam-heading">Add exam</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></header>
+      <label>Exam name<input name="title" maxlength="100" required placeholder="e.g. Derivatives final"></label>
+      <div class="row fields">
+        <label>Course code<input name="course" maxlength="32" list="courses" required placeholder="e.g. MAA06"></label>
+        <datalist id="courses"></datalist>
+        <label>Exam date<input type="date" name="day" required></label>
+      </div>
+      <p class="muted">The course code links this card to imported packs. Enter the date yourself; nothing is taken from your calendar.</p>
+      <div class="row"><button type="submit" class="button primary">Save exam</button><button type="button" class="button danger" id="remove-exam" hidden>Remove exam</button></div>
+      <p id="exam-status" role="status" class="status"></p>
+    </form>
+  </dialog>
+  <dialog id="support-dialog"><div class="dialog-inner">
+    <header class="dialog-head"><h2 id="support-title">Reviewed support</h2><button class="icon-button" data-close aria-label="Close">×</button></header>
+    <div id="support-body"></div>
+  </div></dialog>
+</body>
+</html>
