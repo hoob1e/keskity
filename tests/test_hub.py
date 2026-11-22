@@ -71,6 +71,29 @@ class PacksTest(unittest.TestCase):
         self.assertEqual(old["problems"][0]["digest"], new["problems"][0]["digest"])
         self.assertNotEqual(old["problems"][0]["version"], new["problems"][0]["version"])
 
+    def test_study_metadata_keeps_problem_identity(self):
+        raw = json.loads(RAW)
+        spec = raw["extensions"]["studyHub"]
+        pack, _ = adapt(CORE, RAW, {})
+        self.assertEqual(pack["study"]["title"], "Linear functions")
+        self.assertEqual(public_pack(pack)["problems"][0]["topic"], "Reading a line")
+        del spec["study"]
+        spec["items"] = {pid: {k: v for k, v in entry.items() if k in ("visual", "choice")}
+                         for pid, entry in spec["items"].items() if set(entry) & {"visual", "choice"}}
+        old, _ = adapt(CORE, json.dumps(raw), {})
+        self.assertNotIn("study", old)
+        self.assertNotEqual(old["key"], pack["key"])
+        self.assertEqual([p["version"] for p in old["problems"]], [p["version"] for p in pack["problems"]])
+
+    def test_study_metadata_rejects_unknown_fields_and_invalid_labels(self):
+        for field in ({"html": "<b>Test</b>"}, {"title": ""}, {"concepts": {}},
+                      {"concepts": ["Slope", "slope"]}, {"overview": "t" * 601}):
+            with self.subTest(field=field):
+                raw = json.loads(RAW)
+                raw["extensions"]["studyHub"]["study"] = field
+                with self.assertRaises(ValueError):
+                    adapt(CORE, json.dumps(raw), {})
+
 
 class ApiTest(unittest.TestCase):
     def setUp(self):
@@ -141,6 +164,101 @@ class ApiTest(unittest.TestCase):
         self.assertIsNone(history[0]["feedback"])
         self.assertEqual(self.request("/api/forget",{"id":a["id"]})[0],200)
         self.assertEqual(self.request("/api/history/"+task)[1],[])
+
+    def test_solver_drafts_are_local_and_separate_from_submissions(self):
+        key = self.new_pack()
+        task = key + "/compare-lines"
+        solve, draft = "/api/solver/" + task, "/api/draft/" + task
+        self.assertEqual(self.request(solve)[1], {
+            "draft": None, "hint_indexes": [], "earlier_hint": False, "history": [],
+        })
+        status, saved = self.request(draft, {"answer":"  Parallel lines.\n  ", "help":"hint"})
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["answer"], "  Parallel lines.\n  ")
+        self.assertEqual(self.request(draft, {"answer":"", "help":"no-help"})[0], 400)
+        self.assertEqual(self.request(draft, {"answer":"Other origin"}, origin="http://elsewhere.local")[0], 403)
+
+        self.server.store = Store(Path(self.temp.name))
+        self.assertEqual(self.request(solve)[1]["draft"], saved)
+        self.assertIsNone(self.request("/api/solver/" + key + "/moving-slope")[1]["draft"])
+        home = self.request("/api/home")[1]
+        self.assertEqual(home["packs"][0]["attempted"], 0)
+        self.assertEqual(home["activity"][-1]["count"], 0)
+        self.assertEqual(self.request("/api/history/" + task)[1], [])
+
+        _, newer = self.request(draft, {"answer":"A newer draft"})
+        self.assertNotEqual(newer["revision"], saved["revision"])
+        self.assertEqual(self.request("/api/draft-discard/" + task, {"revision": saved["revision"]})[0], 404)
+        status, a = self.request("/api/attempt/" + task, {**saved, "draft_revision":saved["revision"]})
+        self.assertEqual(status, 201)
+        self.assertEqual(a["assistance"], "hinted")
+        self.assertEqual(self.request(solve)[1]["draft"], newer)
+        status, _ = self.request("/api/attempt/" + task, {**newer, "draft_revision":newer["revision"]})
+        self.assertEqual(status, 201)
+        self.assertIsNone(self.request(solve)[1]["draft"])
+
+    def test_choice_draft_does_not_check_and_can_be_discarded(self):
+        key = self.new_pack()
+        task = key + "/intercept-check"
+        self.assertEqual(self.request("/api/draft/" + task, {"choice":True})[0], 400)
+        status, draft = self.request("/api/draft/" + task, {"choice":2})
+        self.assertEqual(status, 200)
+        self.assertEqual(set(draft), {"choice", "help", "revision", "updated_at"})
+        self.assertEqual(self.request("/api/draft-discard/" + task, {"revision":draft["revision"]})[0], 200)
+        state = self.request("/api/solver/" + task)[1]
+        self.assertEqual(state["history"], [])
+        self.assertIsNone(state["draft"])
+
+    def test_hint_count_records_distinct_reveals_not_availability(self):
+        raw = json.loads(RAW)
+        hints = raw["problems"][1]["support"]["hints"]
+        hints.append({"id":"next-step","text":"Compare the equations.", "reveals_target":True})
+        status, item = self.request("/api/import", {"packet":json.dumps(raw), "assets":{}})
+        self.assertEqual(status, 200)
+        task = item["key"] + "/compare-lines"
+        url = "/api/solver/" + task
+        reveal = "/api/reveal/" + task
+        self.assertEqual(self.request(url)[1]["hint_indexes"], [])
+        self.assertEqual(self.request(reveal, {"kind":"hint","index":1})[1], {"confirm":True})
+        self.assertEqual(self.request(url)[1]["hint_indexes"], [])
+        for _ in range(2):
+            self.assertEqual(self.request(reveal, {"kind":"hint","index":0})[0], 200)
+        self.assertEqual(self.request(url)[1]["hint_indexes"], [0])
+        self.assertEqual(self.request(reveal, {"kind":"hint","index":1,"allow_reveal":True})[0], 200)
+        self.assertEqual(self.request(url)[1]["hint_indexes"], [0, 1])
+        self.assertEqual(self.request("/api/attempt/" + task, {"answer":"Their slopes match."})[1]["assistance"],
+                         "worked-explanation")
+
+    def test_study_index_keeps_attempts_and_support_separate(self):
+        key = self.new_pack()
+        path = "/api/attempt/" + key + "/intercept-check"
+        status, submission = self.request(path, {"choice":2})
+        self.assertEqual(status, 201)
+        self.request(path, {"choice":2})
+
+        legacy = json.loads(RAW)
+        legacy.pop("course")
+        legacy.pop("extensions")
+        status, independent = self.request("/api/import", {"packet":json.dumps(legacy),"assets":{}})
+        self.assertEqual(status, 200)
+        independent_route = "/api/study/independent/"
+        self.assertEqual(self.request(independent_route + key)[0], 404)
+        self.assertEqual(self.request("/api/study/course?code=UNKNOWN")[0], 404)
+        code, packs = self.request("/api/study/course?code=DEMO")
+        self.assertEqual(code, 200)
+        self.assertEqual([p["key"] for p in packs], [key])
+        items = {p["id"]:p for p in packs[0]["problems"]}
+        self.assertEqual(items["intercept-check"]["attempts"], 2)
+        self.assertGreaterEqual(items["intercept-check"]["latest"], submission["submitted_at"])
+        self.assertTrue(items["intercept-check"]["choice"])
+        self.assertEqual(items["moving-slope"]["preview"], {"line": {"slope":1,"intercept":2}})
+        sensitive = {"answer", "statement", "solution", "rubric", "correct_index", "options", "hint_count"}
+        for item in items.values():
+            self.assertTrue(sensitive.isdisjoint(item))
+        code, [standalone] = self.request(independent_route + independent["key"])
+        self.assertEqual(code, 200)
+        self.assertEqual(standalone["study"], {})
+        self.assertTrue(all(p["attempts"] == 0 and p["latest"] is None for p in standalone["problems"]))
 
     def test_exam_card_edit_and_origin(self):
         day = (date.today()+timedelta(days=3)).isoformat()

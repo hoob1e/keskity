@@ -1,0 +1,50 @@
+/* Keep navigation and text stable; motion confirms a press, not a page change. */
+:root { --ease-out: cubic-bezier(.23, 1, .32, 1); --press-speed: 120ms; }
+/* Fade only a paint layer, so a theme change never blends light and dark text. */
+:root { --card-lift: .21; }
+:root[data-theme=white] { --card-lift: .48; }
+:root[data-theme=dark] { --card-lift: .027; }
+
+.card { position: relative; isolation: isolate; }
+.card::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: #fff; opacity: 0; pointer-events: none;
+}
+:is(.resume-card, .study-hero) { --card-lift: .024; }
+:root[data-theme=white] :is(.ambient-card, .tip-card, .study-fact) { --card-lift: .25; }
+a.card:focus-visible, .card:has(:focus-visible) { outline-offset: 2px; }
+a.card:focus-visible::after, .card:has(:focus-visible)::after { opacity: var(--card-lift); }
+:is(.button, .icon-button):not(:disabled):active:not(.primary) { background: var(--tint); }
+.button.primary:not(:disabled):active { background: var(--hover); border-color: var(--hover); }
+.workspace-link:active, .entry-link:active { background: var(--tint); }
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover::after { opacity: var(--card-lift); }
+  :is(.top-actions, .tip-actions, .library-head, .dashboard-exams, .problem-switcher) .icon-button:not(:disabled):hover { color: var(--accent); background: var(--tint); }
+  .top-actions .button:hover, .button.add-exam:hover { background: var(--tint); }
+  .button.resume-link:hover { background: #f1ecf9; border-color: #f1ecf9; }
+  .workspace-link:hover:not([aria-current]) { background: var(--tint); }
+  .entry-link:hover, .problem-card:hover, .pack-card:has(a:hover) { border-color: var(--accent); }
+  :is(.entry-link, .problem-card):hover .link-arrow { color: var(--accent); }
+  .exam-copy a:hover, .arrow-link:hover { text-decoration: underline; }
+  .heat-calendar .heat:hover { outline: 1px solid var(--guide); outline-offset: 1px; }
+}
+.entry-link:focus-visible, .pack-card:focus-within { border-color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  :is(.top-actions, .dashboard-grid, .dashboard-recent, .workspace-library, .problem-switcher, .problem-actions, .answer-actions) :is(.button, .icon-button), .workspace-link, .entry-link {
+    transition: transform var(--press-speed) var(--ease-out);
+  }
+  :is(.top-actions, .dashboard-grid, .dashboard-recent, .workspace-library, .problem-switcher, .problem-actions, .answer-actions) :is(.button, .icon-button):active:not(:disabled):not(:focus-visible) {
+    transform: scale(.975);
+  }
+  .workspace-link:active:not(:focus-visible), .entry-link:active:not(:focus-visible) { transform: scale(.99); }
+  @media (hover: hover) and (pointer: fine) {
+    .card:not(:focus-within)::after { transition: opacity var(--press-speed) var(--ease-out); }
+    .link-arrow { transition: transform var(--press-speed) var(--ease-out); }
+    :is(.entry-link, .arrow-link, .resume-link, .problem-card):hover .link-arrow { transform: translateX(2px); }
+  }
+}
+
+@media (forced-colors: active) {
+  .card::after { display: none; }
+}

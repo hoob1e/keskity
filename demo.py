@@ -41,8 +41,22 @@ def fixture(core):
              "The vertical intercept is $(0,-2)$, found by setting $x=0$.",
              "What is the $x$-coordinate of every point on the vertical axis?", "Substituting x=0 yields y=-2."),
     ]
-    pack["extensions"] = {"studyHub":{"version":1,"items":{
-        "moving-slope":{"visual":{"kind":"line","caption":"Vary the slope and compare where the line meets each axis.","slope":1,"intercept":2,"slider":True}},
-        "intercept-check":{"choice":{"options":["$(-2,0)$","$(0,3)$","$(0,-2)$"],"correct_index":2}},
-    }}}
+    pack["extensions"] = {"studyHub": {
+        "version": 1,
+        "study": {
+            "title": "Linear functions",
+            "overview": "Read graphs and equations as two ways of describing the same relationship. Change a line’s slope, find its intercept, and compare two lines.",
+            "uses": "A linear model can separate a fixed cost from a rate, like a delivery fee plus a price per kilometre.",
+            "concepts": ["Slope", "Intercept", "Rate of change"],
+            "fact": "On a speed–time graph, a horizontal line above zero represents steady motion.",
+        },
+        "items": {
+            "moving-slope": {"title": "Change the slope", "topic": "Reading a line",
+                             "visual": {"kind": "line", "caption": "Vary the slope and compare where the line meets each axis.",
+                                        "slope": 1, "intercept": 2, "slider": True}},
+            "compare-lines": {"title": "Compare two lines", "topic": "Comparing lines"},
+            "intercept-check": {"title": "Find the intercept", "topic": "Reading a line",
+                                "choice": {"options": ["$(-2,0)$", "$(0,3)$", "$(0,-2)$"], "correct_index": 2}},
+        },
+    }}
     return json.dumps(pack, ensure_ascii=False)

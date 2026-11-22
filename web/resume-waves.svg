@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="690" height="230" viewBox="0 0 690 230" preserveAspectRatio="xMaxYMid slice">
+  <defs>
+    <radialGradient id="shine" cx=".79" cy=".53" r=".58">
+      <stop stop-color="#cfb4f0" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#af8dd4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="reveal">
+      <stop offset=".32" stop-color="#000"/>
+      <stop offset=".7" stop-color="#fff"/>
+    </linearGradient>
+    <mask id="right"><path fill="url(#reveal)" d="M0 0h690v230H0z"/></mask>
+    <filter id="blur" x="-35%" y="-90%" width="175%" height="285%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+  </defs>
+  <path fill="url(#shine)" d="M0 0h690v230H0z"/>
+  <g mask="url(#right)" fill="none">
+    <g stroke="#cbb7ed" stroke-opacity=".2" stroke-width="4" filter="url(#blur)">
+      <path d="M296 47c121-24 231-43 328-22 80 17 117 51 107 68-18 32-124 30-171 14-42-14-29-38 28-37 45 1 61 9 65 16"/>
+      <path d="M287 82c123-27 254-36 338-8 68 22 112 40 100 63-17 32-149 21-206-4-49-21-31-48 37-52"/>
+      <path d="M288 120c143-26 266-24 353 9 66 25 93 38 81 58-24 38-184 19-258-16"/>
+      <path d="M307 161c119-21 230-17 305 10 85 31 127 58 110 83"/>
+    </g>
+    <g stroke="#e3d7f7" stroke-opacity=".38" stroke-width="1.1">
+      <path d="M326 132c55 0 79-53 129-53 51 0 72 56 122 56 51 0 77-58 131-58"/>
+      <path d="M326 122c55 9 79-36 129-32 49 4 75 44 123 42 51-2 80-43 130-44"/>
+      <path d="M330 146c58-4 85-67 134-64 48 3 66 68 111 67 53-2 83-70 134-65"/>
+    </g>
+    <circle cx="548" cy="114" r="2.3" fill="#fff0fc" opacity=".82"/>
+  </g>
+</svg>

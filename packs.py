@@ -69,19 +69,47 @@ def line(value, label, limit):
     return value.strip()
 
 
-def widget_config(packet):
-    """A reviewed, explicitly typed display extension. Never accepts scripts or expressions."""
+def study_text(value, label, limit):
+    """Plain display text, not Markdown, a link, or a prompt."""
+    value = " ".join(line(value, label, limit).split())
+    if re.search(r"[\x00-\x1f\x7f]", value):
+        raise ValueError(f"{label} cannot contain control characters.")
+    return value
+
+
+def study_metadata(value):
+    if not isinstance(value, dict) or set(value) - {"title", "overview", "uses", "concepts", "fact"}:
+        raise ValueError("Study metadata can contain title, overview, uses, concepts, and fact.")
+    limits = {"title": 100, "overview": 600, "uses": 400, "fact": 240}
+    data = {k: study_text(value[k], f"Study {k}", n) for k, n in limits.items() if k in value}
+    if "concepts" in value:
+        concepts = value["concepts"]
+        if not isinstance(concepts, list) or not 1 <= len(concepts) <= 12:
+            raise ValueError("Study concepts must contain 1–12 labels.")
+        labels = [study_text(v, "Concept label", 60) for v in concepts]
+        if len({label.casefold() for label in labels}) != len(labels):
+            raise ValueError("Study concepts must use distinct labels.")
+        data["concepts"] = labels
+    return data
+
+
+def study_hub_config(packet):
+    """Validate viewer options separately from the released problem contract."""
     spec = packet.get("extensions", {}).get("studyHub")
     if spec is None:
-        return {}
-    if not isinstance(spec, dict) or set(spec) != {"version", "items"} or type(spec["version"]) is not int or spec["version"] != 1 or not isinstance(spec["items"], dict):
-        raise ValueError("Expected extensions.studyHub version 1 with an items object.")
+        return {}, {}
+    if (not isinstance(spec, dict) or set(spec) - {"version", "items", "study"}
+            or type(spec.get("version")) is not int or spec["version"] != 1
+            or not isinstance(spec.get("items", {}), dict)):
+        raise ValueError("Expected extensions.studyHub version 1.")
+    study = study_metadata(spec["study"]) if "study" in spec else {}
     result = {}
     problems = {p["id"]: p for p in packet["problems"]}
-    for pid, config in spec["items"].items():
-        if pid not in problems or not isinstance(config, dict) or not config or set(config) - {"visual", "choice"}:
+    for pid, config in spec.get("items", {}).items():
+        if pid not in problems or not isinstance(config, dict) or not config or set(config) - {"visual", "choice", "title", "topic"}:
             raise ValueError(f"Invalid Study Hub options for {pid}.")
-        out = {}
+        out = {k: study_text(config[k], f"Problem {k}", n)
+               for k, n in (("title", 100), ("topic", 60)) if k in config}
         if "visual" in config:
             v = config["visual"]
             if not isinstance(v, dict) or set(v) != {"kind", "caption", "slope", "intercept", "slider"} or v["kind"] != "line" or type(v["slider"]) is not bool:
@@ -101,7 +129,7 @@ def widget_config(packet):
                 raise ValueError(f"{pid}: multiple choice requires distinct options and a checked key.")
             out["choice"] = {"options": options, "correct_index": i}
         result[pid] = out
-    return result
+    return study, result
 
 
 def adapt(core, raw, uploaded):
@@ -151,17 +179,20 @@ def adapt(core, raw, uploaded):
             raise ValueError("Not a released problem set: " + " · ".join(errors[:3]))
         if packet["plan"]["participation"] != "individual":
             raise ValueError("This hub imports individual practice packets, not group evidence.")
-        widgets = widget_config(packet)
+        study, items = study_hub_config(packet)
 
     problems = []
     for task in packet["problems"]:
         if task["status"] not in ("checked", "experimental"):
             continue
-        cfg = widgets.get(task["id"], {})
+        cfg = items.get(task["id"], {})
+        widgets = {k: cfg[k] for k in ("visual", "choice") if k in cfg}
         support = task["support"]
+        digest = core["problem_digest"](task)
         problems.append({
-            "id": task["id"], "digest": core["problem_digest"](task),
-            "version": core["digest"]([core["problem_digest"](task), cfg]),
+            **{k: cfg[k] for k in ("title", "topic") if k in cfg},
+            "id": task["id"], "digest": digest,
+            "version": core["digest"]([digest, widgets]),
             "statement": task["statement"], "status": task["status"],
             "uncertainty": task.get("uncertainty"), "assets": task["assets"],
             "visual": cfg.get("visual"), "choice": cfg.get("choice"),
@@ -176,6 +207,8 @@ def adapt(core, raw, uploaded):
         "reveal_policy": packet["plan"]["help"]["reveal_policy"],
         "problems": problems,
     }
+    if study:
+        pack["study"] = study
     pack["key"] = core["digest"](pack)
     return pack, assets
 
@@ -183,7 +216,7 @@ def adapt(core, raw, uploaded):
 def public_pack(pack):
     data = {k: v for k, v in pack.items() if k != "problems"}
     data["problems"] = [{
-        **{k: p[k] for k in ("id", "version", "statement", "status", "uncertainty", "visual")},
+        **{k: p[k] for k in ("id", "version", "statement", "status", "uncertainty", "visual", "title", "topic") if k in p},
         "assets": [a for a in p["assets"] if a["role"] == "prompt"],
         "options": p["choice"]["options"] if p["choice"] else [],
         "hint_count": len(p["hints"]),

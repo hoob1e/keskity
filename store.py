@@ -21,6 +21,14 @@ CREATE TABLE IF NOT EXISTS exposures(
   pack_key TEXT REFERENCES packs(key), problem_id TEXT, kind TEXT,
   PRIMARY KEY(pack_key, problem_id, kind)
 );
+CREATE TABLE IF NOT EXISTS drafts(
+  pack_key TEXT NOT NULL REFERENCES packs(key), problem_id TEXT NOT NULL,
+  revision TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(pack_key, problem_id)
+);
+CREATE TABLE IF NOT EXISTS hint_opens(
+  pack_key TEXT NOT NULL REFERENCES packs(key), problem_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+  PRIMARY KEY(pack_key, problem_id, ordinal)
+);
 CREATE TABLE IF NOT EXISTS attempts(
   id TEXT PRIMARY KEY, pack_key TEXT NOT NULL REFERENCES packs(key), problem_id TEXT NOT NULL,
   problem_version TEXT NOT NULL, problem_digest TEXT NOT NULL,
@@ -102,6 +110,40 @@ class Store:
         with self.connect() as db:
             db.execute("DELETE FROM exams WHERE id=?", (exam_id,))
 
+    def study(self, *, course=None, key=None):
+        """Return a compact problem index without prompts, worked support, or answers."""
+        with self.connect() as db:
+            rows = db.execute("SELECT payload FROM packs WHERE key=?" if key else
+                              "SELECT payload FROM packs ORDER BY imported_at DESC", (key,) if key else ())
+            output = []
+            for row in rows:
+                pack = json.loads(row["payload"])
+                if (key and pack["course"]) or (not key and pack["course"] != course):
+                    continue
+                attempts = {r["problem_id"]: (r["n"], r["latest"]) for r in db.execute(
+                    "SELECT problem_id, COUNT(*) n, MAX(submitted_at) latest "
+                    "FROM attempts WHERE pack_key=? GROUP BY problem_id", (pack["key"],))}
+                problems = []
+                for p in pack["problems"]:
+                    count, latest = attempts.get(p["id"], (0, None))
+                    preview = next(({"path": a["path"]} for a in p["assets"]
+                                    if a["role"] == "prompt" and not a["path"].lower().endswith(".gif")), None)
+                    if preview is None and p["visual"]:
+                        preview = {"line": {k: p["visual"][k] for k in ("slope", "intercept")}}
+                    problems.append({
+                        **{k: p[k] for k in ("id", "status", "title", "topic") if k in p},
+                        "attempts": count, "latest": latest, "preview": preview,
+                        "choice": p["choice"] is not None,
+                    })
+                output.append({
+                    **{k: pack[k] for k in ("key", "title", "scope")},
+                    "study": pack.get("study", {}),
+                    "problems": problems,
+                })
+        if not output:
+            raise LookupError("No study packs found for this area.")
+        return output
+
     def dashboard(self):
         today = date.today()
         first = today - timedelta(days=34)
@@ -121,6 +163,7 @@ class Store:
                     "total": len(checked), "items": len(all_ids), "attempted": sum(pid in counts for pid in checked),
                     "attempted_ids": [pid for pid in all_ids if pid in counts],
                     "submissions": sum(counts.values()), "imported_at": row["imported_at"],
+                    "study_title": p.get("study", {}).get("title"),
                     "resume_id": next((pid for pid in all_ids if pid not in counts), all_ids[0]),
                 })
             chart = {row["day"]: row["n"] for row in db.execute(
@@ -130,9 +173,39 @@ class Store:
                 "activity": [{"day": (first+timedelta(days=i)).isoformat(), "count": chart.get((first+timedelta(days=i)).isoformat(), 0)}
                              for i in range(35)]}
 
-    def reveal(self, key, pid, kind):
+    def reveal(self, key, pid, kind, *, hint_index=None):
         with self.connect() as db:
             db.execute("INSERT OR IGNORE INTO exposures VALUES(?,?,?)", (key, pid, kind))
+            if hint_index is not None:
+                db.execute("INSERT OR IGNORE INTO hint_opens VALUES(?,?,?)", (key, pid, hint_index))
+
+    def solver_state(self, key, pid):
+        with self.connect() as db:
+            draft = db.execute("SELECT revision,body FROM drafts WHERE pack_key=? AND problem_id=?", (key, pid)).fetchone()
+            hints = [row[0] for row in db.execute(
+                "SELECT ordinal FROM hint_opens WHERE pack_key=? AND problem_id=? ORDER BY ordinal", (key, pid))]
+            earlier_hint = db.execute(
+                "SELECT 1 FROM exposures WHERE pack_key=? AND problem_id=? AND kind='hint'", (key, pid)).fetchone()
+            history = db.execute("SELECT * FROM attempts WHERE pack_key=? AND problem_id=? "
+                                 "ORDER BY submitted_at DESC LIMIT 25", (key, pid)).fetchall()
+        return {"draft": {**json.loads(draft["body"]), "revision": draft["revision"]} if draft else None,
+                "hint_indexes": hints, "earlier_hint": bool(earlier_hint) and not hints,
+                "history": [attempt_row(row) for row in history]}
+
+    def save_draft(self, key, pid, body):
+        revision = str(uuid.uuid4())
+        body = {**body, "updated_at": stamp()}
+        with self.connect() as db:
+            db.execute("INSERT INTO drafts VALUES(?,?,?,?) ON CONFLICT(pack_key, problem_id) "
+                       "DO UPDATE SET revision=excluded.revision, body=excluded.body",
+                       (key, pid, revision, encode(body)))
+        return {**body, "revision": revision}
+
+    def discard_draft(self, key, pid, revision):
+        with self.connect() as db:
+            row = db.execute("DELETE FROM drafts WHERE pack_key=? AND problem_id=? AND revision=?", (key, pid, revision))
+            if not row.rowcount:
+                raise LookupError("The saved draft changed. Reopen the problem to get the latest copy.")
 
     def history(self, key, pid):
         with self.connect() as db:
@@ -147,7 +220,7 @@ class Store:
             raise LookupError("Attempt not found.")
         return attempt_row(row)
 
-    def save_attempt(self, key, problem, answer, choice_index, reported, feedback):
+    def save_attempt(self, key, problem, answer, choice_index, reported, feedback, draft_revision=None):
         pid = problem["id"]
         aid = str(uuid.uuid4())
         with self.connect() as db:
@@ -174,6 +247,8 @@ class Store:
                        (aid, key, pid, problem["version"], problem["digest"], stamp(),
                         date.today().isoformat(), answer, choice_index, assistance,
                         encode(sorted(used)), encode(feedback) if feedback else None, prev["id"] if prev else None))
+            if draft_revision:
+                db.execute("DELETE FROM drafts WHERE pack_key=? AND problem_id=? AND revision=?", (key, pid, draft_revision))
         return self.attempt(aid)
 
     def save_feedback(self, aid, feedback):

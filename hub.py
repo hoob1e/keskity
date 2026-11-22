@@ -22,7 +22,25 @@ MODULES = ROOT / "node_modules"
 STATIC = {
     "/": (ROOT / "web/index.html", "text/html; charset=utf-8"),
     "/app.js": (ROOT / "web/app.js", "text/javascript; charset=utf-8"),
+    "/solver.js": (ROOT / "web/solver.js", "text/javascript; charset=utf-8"),
+    "/answer-editor.js": (ROOT / "web/answer-editor.js", "text/javascript; charset=utf-8"),
+    "/attempt-history.js": (ROOT / "web/attempt-history.js", "text/javascript; charset=utf-8"),
+    "/workspace.js": (ROOT / "web/workspace.js", "text/javascript; charset=utf-8"),
+    "/study-tips.js": (ROOT / "web/study-tips.js", "text/javascript; charset=utf-8"),
+    "/study.js": (ROOT / "web/study.js", "text/javascript; charset=utf-8"),
+    "/problem-cards.js": (ROOT / "web/problem-cards.js", "text/javascript; charset=utf-8"),
+    "/dashboard.js": (ROOT / "web/dashboard.js", "text/javascript; charset=utf-8"),
     "/theme.css": (ROOT / "web/theme.css", "text/css; charset=utf-8"),
+    "/solver.css": (ROOT / "web/solver.css", "text/css; charset=utf-8"),
+    "/typography.css": (ROOT / "web/typography.css", "text/css; charset=utf-8"),
+    "/study.css": (ROOT / "web/study.css", "text/css; charset=utf-8"),
+    "/workspace.css": (ROOT / "web/workspace.css", "text/css; charset=utf-8"),
+    "/dashboard.css": (ROOT / "web/dashboard.css", "text/css; charset=utf-8"),
+    "/motion.css": (ROOT / "web/motion.css", "text/css; charset=utf-8"),
+    "/resume-waves.svg": (ROOT / "web/resume-waves.svg", "image/svg+xml"),
+    "/appearance.css": (ROOT / "web/appearance.css", "text/css; charset=utf-8"),
+    "/appearance.js": (ROOT / "web/appearance.js", "text/javascript; charset=utf-8"),
+    "/local-fonts.js": (ROOT / "web/local-fonts.js", "text/javascript; charset=utf-8"),
     "/lib/markdown-it.js": (MODULES / "markdown-it/dist/markdown-it.min.js", "text/javascript; charset=utf-8"),
     "/lib/katex.js": (MODULES / "katex/dist/katex.min.js", "text/javascript; charset=utf-8"),
     "/lib/katex-auto.js": (MODULES / "katex/dist/contrib/auto-render.min.js", "text/javascript; charset=utf-8"),
@@ -54,6 +72,22 @@ def get_task(store, key, pid):
     if task is None:
         raise LookupError("Problem not found in this edition.")
     return pack, task
+
+
+def response_input(task, data, *, draft=False):
+    reported = data.get("help", "unknown")
+    if reported not in ("unknown", "no-help", "hint", "solution"):
+        raise ValueError("Unsupported help status.")
+    if task["choice"]:
+        index = data.get("choice")
+        if type(index) is not int or not 0 <= index < len(task["choice"]["options"]):
+            raise ValueError("Choose an answer.")
+        return {"choice": index, "help": reported}
+    answer = data.get("answer")
+    clean = line(answer, "Answer", 12000)
+    if draft and len(answer) > 12000:
+        raise ValueError("A draft can contain at most 12,000 characters.")
+    return {"answer": answer if draft else clean, "help": reported}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -116,12 +150,20 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(font.read_bytes(), mime="font/" + font.suffix[1:])
             if parts == ["api", "home"]:
                 return self.respond({**db.dashboard(), "grader": self.server.grader.port is not None, "demo": self.server.demo})
+            if parts == ["api", "study", "course"]:
+                course = parse_qs(url.query, max_num_fields=1).get("code", [""])[0]
+                if course:
+                    return self.respond(db.study(course=course))
+                raise LookupError("Choose a course.")
+            if len(parts) == 4 and parts[:3] == ["api", "study", "independent"] and KEY.fullmatch(parts[3]):
+                return self.respond(db.study(key=parts[3]))
             if len(parts) == 3 and parts[:2] == ["api", "pack"] and KEY.fullmatch(parts[2]):
                 pack = public_pack(db.pack(parts[2]))
                 return self.respond(pack)
-            if len(parts) == 4 and parts[:2] == ["api", "history"]:
-                get_task(db, parts[2], parts[3])
-                return self.respond(db.history(parts[2], parts[3]))
+            if len(parts) == 4 and parts[1] in {"history", "solver"} and parts[0] == "api":
+                key, pid = parts[2:]
+                get_task(db, key, pid)
+                return self.respond(db.history(key, pid) if parts[1] == "history" else db.solver_state(key, pid))
             if len(parts) == 3 and parts[:2] == ["api", "image"] and KEY.fullmatch(parts[2]):
                 name = asset_path(parse_qs(url.query, max_num_fields=2).get("path", [""])[0])
                 mime, blob = db.asset(parts[2], name)
@@ -167,9 +209,14 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Local checking is limited to written, text-only practice with a reviewed key.")
             feedback = self.server.grader.complete(p, a["answer"], pack["language"])
             return self.respond(db.save_feedback(a["id"], feedback))
-        if len(parts) == 4 and parts[1] in {"attempt", "reveal"}:
+        if len(parts) == 4 and parts[1] in {"attempt", "reveal", "draft", "draft-discard"}:
             key, pid = parts[2:]
             _, task = get_task(db, key, pid)
+            if parts[1] == "draft":
+                return self.respond(db.save_draft(key, pid, response_input(task, data, draft=True)))
+            if parts[1] == "draft-discard":
+                db.discard_draft(key, pid, uuid_text(data.get("revision")))
+                return self.respond({"ok": True})
             if parts[1] == "reveal":
                 kind = data.get("kind")
                 if kind == "hint":
@@ -179,31 +226,27 @@ class Handler(BaseHTTPRequestHandler):
                     h = task["hints"][n]
                     if h["reveals_target"] and not data.get("allow_reveal"):
                         return self.respond({"confirm": True})
-                    db.reveal(key, pid, "solution" if h["reveals_target"] else "hint")
+                    db.reveal(key, pid, "solution" if h["reveals_target"] else "hint", hint_index=n)
                     return self.respond({"text": h["text"]})
                 if kind == "solution":
                     db.reveal(key, pid, "solution")
                     return self.respond({"solution": task["solution"], "rubric": task["rubric"],
                                          "assets": [a for a in task["assets"] if a["role"] == "support"]})
                 raise ValueError("Unsupported reveal.")
-            reported = data.get("help", "unknown")
-            if reported not in ("unknown", "no-help", "hint", "solution"):
-                raise ValueError("Unsupported help status.")
+            answer = response_input(task, data)
             fb = None
-            i = None
-            if task["choice"]:
-                i = data.get("choice")
-                options = task["choice"]["options"]
-                if type(i) is not int or not 0 <= i < len(options):
-                    raise ValueError("Choose an answer.")
-                text = options[i]
+            i = answer.get("choice")
+            if i is not None:
+                text = task["choice"]["options"][i]
                 right = i == task["choice"]["correct_index"]
                 fb = {"method": "answer-key", "verdict": "correct" if right else "incorrect",
                       "feedback": "That matches the checked key." if right else "That choice does not match the checked key.",
                       "next_step": "" if right else "Try again or open the reviewed solution when ready."}
             else:
-                text = line(data.get("answer"), "Answer", 12000)
-            return self.respond(db.save_attempt(key, task, text, i, reported, fb), status=201)
+                text = answer["answer"]
+            revision = data.get("draft_revision")
+            return self.respond(db.save_attempt(
+                key, task, text, i, answer["help"], fb, uuid_text(revision) if revision is not None else None), status=201)
         raise LookupError("Page not found.")
 
     def dispatch(self, method):

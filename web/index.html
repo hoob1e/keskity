@@ -1,43 +1,252 @@
 <!doctype html>
-<html lang="en" data-theme="paper">
+<html lang="en" data-theme="white">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Study Hub</title>
+  <title>keskity</title>
   <link rel="stylesheet" href="/lib/katex.css">
   <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/typography.css">
+  <link rel="stylesheet" href="/appearance.css">
+  <link rel="stylesheet" href="/workspace.css">
+  <link rel="stylesheet" href="/dashboard.css">
+  <link rel="stylesheet" href="/study.css">
+  <link rel="stylesheet" href="/solver.css">
+  <link rel="stylesheet" href="/motion.css">
   <script defer src="/lib/markdown-it.js"></script>
   <script defer src="/lib/katex.js"></script>
   <script defer src="/lib/katex-auto.js"></script>
+  <script defer src="/local-fonts.js"></script>
+  <script defer src="/appearance.js"></script>
+  <script defer src="/workspace.js"></script>
+  <script defer src="/study-tips.js"></script>
+  <script defer src="/dashboard.js"></script>
+  <script defer src="/problem-cards.js"></script>
+  <script defer src="/study.js"></script>
+  <script defer src="/attempt-history.js"></script>
+  <script defer src="/answer-editor.js"></script>
+  <script defer src="/solver.js"></script>
   <script defer src="/app.js"></script>
 </head>
 <body>
+  <svg class="icon-defs" width="0" height="0" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-book" viewBox="0 0 24 24"><path d="M12 6C9.5 4.6 6.4 4 3 5v14c3.4-1 6.5-.4 9 1 2.5-1.4 5.6-2 9-1V5c-3.4-1-6.5-.4-9 1Zm0 0v14"/></symbol>
+    <symbol id="icon-dashboard" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="icon-data" viewBox="0 0 24 24"><path d="M4 4v16h16M8 16v-4m5 4V7m5 9V10"/></symbol>
+    <symbol id="icon-import" viewBox="0 0 24 24"><path d="M12 3v11m-4-4 4 4 4-4M4 15v5h16v-5"/></symbol>
+    <symbol id="icon-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.4 2.6c-.9.5-1.4 1.1-1.4 2.4m0 3.2v.1"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M10 3h4l.6 2.6 1.7 1 2.6-.9 2 3.5-2 1.8v2l2 1.8-2 3.5-2.6-.9-1.7 1-.6 2.6h-4l-.6-2.6-1.7-1-2.6.9-2-3.5 2-1.8v-2l-2-1.8 2-3.5 2.6.9 1.7-1Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-sort" viewBox="0 0 24 24"><path d="M4 6h9M4 11h7m-7 5h5M18 5v14m-3-3 3 3 3-3"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4m8-4v4"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="m4 17 12-12 4 4L8 21H4Zm10-10 4 4M4 21h16"/></symbol>
+    <symbol id="icon-down" viewBox="0 0 24 24"><path d="M12 4v15m-5-5 5 5 5-5"/></symbol>
+    <symbol id="icon-open" viewBox="0 0 24 24"><path d="M6 18 18 6M8 6h10v10"/></symbol>
+    <symbol id="icon-note" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5m-10 4h7m-7 4h5"/></symbol>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m4 7 2 2 3-4m-5 9 2 2 3-4m3-4h8m-8 7h8"/></symbol>
+    <symbol id="icon-focus" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-bulb" viewBox="0 0 24 24"><path d="M9 17v-2.1a6 6 0 1 1 6 0V17m-6 0h6m-5 4h4"/></symbol>
+    <symbol id="icon-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    <symbol id="icon-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="icon-pause" viewBox="0 0 24 24"><path d="M9 5v14m6-14v14"/></symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  </svg>
   <a class="skip" href="#main">Skip to content</a>
   <header class="top">
     <div class="top-inner">
       <a class="brand" href="#home">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h20v18H6zM6 13h20M13 13v12M17 17h5M17 21h5"/></svg>
-        <span>Study Hub</span>
+        <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#icon-book"/></svg></span>
+        <span>keskity</span>
       </a>
+      <nav class="breadcrumbs" id="breadcrumbs" aria-label="Breadcrumb" hidden></nav>
       <div class="top-actions">
-        <span id="demo-tag" class="tag" hidden>Demo · temporary</span>
-        <label class="theme">
-          <span class="sr-only">Appearance</span>
-          <select id="theme">
-            <option value="paper">Warm Paper</option>
-            <option value="dark">Noctalia dark</option>
-            <option value="ink">High contrast</option>
-          </select>
-        </label>
-        <button class="button primary" id="open-import">Import pack</button>
+        <span id="demo-tag" class="tag" hidden title="Temporary workspace with sample data">Demo</span>
+        <button class="button" type="button" id="open-import" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#icon-import"/></svg>Import<span class="sr-only"> pack</span>
+        </button>
+        <button class="icon-button" type="button" id="open-help" aria-label="Help" aria-haspopup="dialog" title="Help">
+          <svg class="icon" aria-hidden="true"><use href="#icon-help"/></svg>
+        </button>
+        <button class="button" type="button" id="problem-focus" aria-pressed="false" title="Enter focus mode" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#icon-focus"/></svg>Focus
+        </button>
+        <button class="icon-button" id="problem-reading" type="button" data-open-reading aria-haspopup="dialog" aria-label="Reading settings" title="Reading settings" hidden>Aa</button>
+        <button class="icon-button" type="button" aria-haspopup="dialog" aria-label="Settings" title="Settings" data-open-appearance>
+          <svg class="icon" aria-hidden="true"><use href="#icon-settings"/></svg>
+        </button>
       </div>
     </div>
   </header>
-  <main id="main" tabindex="-1" aria-busy="true"><p>Opening Study Hub…</p></main>
-  <footer class="footer"><span>Local workspace</span><span id="grader-status">No cloud grading</span></footer>
+  <div class="workspace" id="workspace" data-view="dashboard">
+    <aside class="workspace-rail" aria-label="Workspace">
+      <p class="eyebrow rail-caption">Workspace</p>
+      <nav class="workspace-nav" aria-label="Main navigation">
+        <a href="#home" class="workspace-link" data-route="dashboard" aria-current="page">
+          <svg class="icon" aria-hidden="true"><use href="#icon-dashboard"/></svg>Dashboard
+        </a>
+        <a href="#data" class="workspace-link" data-route="data">
+          <svg class="icon" aria-hidden="true"><use href="#icon-data"/></svg>Data
+        </a>
+        <a href="#study" class="workspace-link" data-route="study">
+          <svg class="icon" aria-hidden="true"><use href="#icon-book"/></svg>Study
+        </a>
+      </nav>
+      <nav class="workspace-library" aria-labelledby="library-title">
+        <div class="library-head">
+          <h2 id="library-title">Library</h2>
+          <button type="button" class="icon-button" id="library-sort" aria-label="Sort by most recently imported"
+                  aria-pressed="false" title="Sort by most recently imported" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#icon-sort"/></svg>
+          </button>
+        </div>
+        <div id="library-items"></div>
+      </nav>
+      <div class="workspace-foot">
+        <span class="local-dot" aria-hidden="true"></span><span id="grader-status">Local workspace</span>
+      </div>
+    </aside>
+    <div class="ambient-area workspace-content">
+      <main id="main" tabindex="-1" aria-busy="true"><p role="status">Opening keskity…</p></main>
+    </div>
+  </div>
   <div class="toast" id="toast" role="status" hidden></div>
 
+  <dialog id="appearance-dialog" class="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="settings-form">
+      <header class="dialog-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-button" aria-label="Close settings" value="done">×</button>
+      </header>
+      <div class="settings-sections" role="group" aria-label="Settings section">
+        <button class="button bare" type="button" data-panel="appearance" aria-pressed="true">Appearance</button>
+        <button class="button bare" type="button" data-panel="reading" aria-pressed="false">Reading</button>
+      </div>
+      <section data-settings="appearance" aria-label="Appearance">
+        <label class="setting-field">Theme
+          <select id="theme" name="theme">
+            <option value="paper">Warm Paper</option>
+            <option value="white">White · Violet</option>
+            <option value="dark">Graphite</option>
+            <option value="ink">High contrast</option>
+          </select>
+        </label>
+        <div class="setting-field">
+          <div class="setting-line">
+            <label for="ambient-glow">Ambient glow</label>
+            <output for="ambient-glow" id="glow-value"></output>
+          </div>
+          <input type="range" id="ambient-glow" name="glow" min="0" max="100">
+        </div>
+        <div class="glow-preview ambient-area" aria-hidden="true">
+          <div class="glow-preview-rail"><span></span><span></span><span></span></div>
+          <div class="glow-preview-main">
+            <div class="glow-preview-resume ambient-resume"><span>Resume</span></div>
+            <div class="glow-preview-card ambient-card"><span></span><span></span></div>
+          </div>
+        </div>
+        <fieldset class="theme-fonts">
+          <legend>Typography</legend>
+          <div class="settings-fields">
+            <label class="setting-field">Interface font
+              <select id="interface-font" name="uiFont">
+                <option value="default">Default · Inter</option>
+                <option value="system">System sans</option>
+                <option value="serif">Classic serif</option>
+                <option value="installed">Installed font…</option>
+              </select>
+            </label>
+            <label class="setting-field">Title font
+              <select id="title-font" name="titleFont">
+                <option value="default">Default · C059</option>
+                <option value="interface">Match interface</option>
+                <option value="system">System sans</option>
+                <option value="serif">Classic serif</option>
+                <option value="installed">Installed font…</option>
+              </select>
+            </label>
+            <label class="setting-field" hidden>Installed interface font name
+              <input id="interface-family" name="uiFamily" type="text" maxlength="70" placeholder="e.g. Adwaita Sans" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="setting-field" hidden>Installed title font name
+              <input id="title-family" name="titleFamily" type="text" maxlength="70" placeholder="e.g. DejaVu Serif" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <figure class="type-preview">
+            <figcaption class="eyebrow">Preview</figcaption>
+            <p class="feature-title">A place to study</p>
+            <p class="small muted">Problems, notes, and the next step.</p>
+          </figure>
+          <div class="font-actions row">
+            <button class="button" type="button" id="add-font">Add font file</button>
+            <input id="font-file" type="file" accept=".woff2,.woff,.ttf,.otf" hidden>
+            <details id="font-files" hidden>
+              <summary>Manage font files</summary>
+              <ul id="font-list"></ul>
+            </details>
+          </div>
+          <p class="status" id="font-status" role="status"></p>
+        </fieldset>
+      </section>
+      <section data-settings="reading" aria-label="Reading" hidden>
+        <p class="small muted">For prompts and answers in problems and practice tests.</p>
+        <div class="settings-fields">
+          <label class="setting-field">Reading font
+            <select id="reading-font" name="font">
+              <option value="interface">Match interface</option>
+              <option value="sans">Sans serif</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+              <option value="installed">Installed font…</option>
+            </select>
+          </label>
+          <div class="setting-field">
+            <div class="setting-line">
+              <label for="reading-size">Text size</label>
+              <output for="reading-size" id="size-value"></output>
+            </div>
+            <input type="range" id="reading-size" name="size" min="14" max="28">
+          </div>
+          <label class="setting-field font-name" hidden>Installed font name
+            <input id="reading-family" name="family" type="text" maxlength="70" placeholder="e.g. Adwaita Sans" autocomplete="off">
+          </label>
+          <label class="setting-field">Line spacing
+            <select id="reading-leading" name="leading">
+              <option value="1.4">Compact</option>
+              <option value="1.6">Comfortable</option>
+              <option value="1.85">Relaxed</option>
+            </select>
+          </label>
+          <label class="setting-field">Line width
+            <select id="reading-width" name="width">
+              <option value="50">Narrow</option>
+              <option value="68">Standard</option>
+              <option value="86">Wide</option>
+            </select>
+          </label>
+        </div>
+        <figure class="reading-preview">
+          <figcaption class="eyebrow">Preview</figcaption>
+          <p class="reading-text">Two waves travel along the same string. Compare their displacement at the same position, then explain how the waves combine.</p>
+        </figure>
+      </section>
+      <footer class="settings-actions">
+        <button class="button bare" type="button" data-reset-settings>Reset</button>
+        <button class="button primary" value="done">Done</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-inner">
+      <header class="dialog-head"><h2 id="help-title">Help</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></header>
+      <p><strong>Study:</strong> Open a pack from your library, or import a published folder containing <code>set.json</code>.</p>
+      <p><strong>Data:</strong> See submissions and problems attempted. These counts don’t measure mastery or time spent.</p>
+      <p><strong>Settings:</strong> Change the theme, glow, or reading text. The app keeps your work on this device.</p>
+    </div>
+  </dialog>
   <dialog id="import-dialog">
     <div class="dialog-inner">
       <header class="dialog-head"><h2>Import a study pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></header>
@@ -66,7 +275,16 @@
       <p id="exam-status" role="status" class="status"></p>
     </form>
   </dialog>
-  <dialog id="support-dialog"><div class="dialog-inner">
+  <dialog id="problem-picker" aria-labelledby="problem-picker-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <h2 id="problem-picker-title">Problems in this set</h2>
+        <button type="button" class="icon-button" data-close aria-label="Close problem list">×</button>
+      </header>
+      <ul id="problem-picker-list" class="problem-pick-list"></ul>
+    </div>
+  </dialog>
+  <dialog id="support-dialog" data-reader-view="problem" aria-labelledby="support-title"><div class="dialog-inner">
     <header class="dialog-head"><h2 id="support-title">Reviewed support</h2><button class="icon-button" data-close aria-label="Close">×</button></header>
     <div id="support-body"></div>
   </div></dialog>

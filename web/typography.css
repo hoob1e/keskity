@@ -1,0 +1,54 @@
+/* Roles are shared by every view. Only display titles and code change family. */
+:root {
+  --type-default: "Inter", system-ui, sans-serif;
+  --display-default: "C059", Georgia, serif;
+  --type: var(--type-default);
+  --display: var(--display-default);
+  --type-code: ui-monospace, monospace;
+  --text-meta: .75rem;
+  --text-small: .875rem;
+  --text-body: 1rem;
+  --text-heading: 1.25rem;
+  --text-page: clamp(2.125rem, 3.6vw, 3.125rem);
+  --text-feature: clamp(1.875rem, 3.2vw, 2.625rem);
+  --weight-body: 400;
+  --weight-medium: 500;
+  --weight-label: 600;
+  --weight-strong: 700;
+}
+
+body { font: var(--weight-body) var(--text-body)/1.5 var(--type); }
+h1, h2, h3 { margin: 0; color: var(--ink); }
+h1 {
+  font: var(--weight-body) var(--text-page)/1.1 var(--display);
+  letter-spacing: -.03em;
+  margin-block: .5rem .75rem;
+}
+h2 {
+  font: var(--weight-label) var(--text-heading)/1.25 var(--type);
+  letter-spacing: -.02em;
+}
+h3 { font: var(--weight-label) var(--text-body)/1.35 var(--type); }
+.feature-title {
+  font: var(--weight-body) var(--text-feature)/1.12 var(--display);
+  letter-spacing: -.025em;
+}
+.small { font-size: var(--text-small); }
+.eyebrow, .tag {
+  font: var(--weight-label) var(--text-meta)/1.35 var(--type);
+  color: var(--accent);
+  letter-spacing: .035em;
+}
+.eyebrow { text-transform: uppercase; letter-spacing: .075em; }
+.muted, .subtle { color: var(--muted); }
+code, kbd, samp, pre { font-family: var(--type-code); }
+
+/* Authored headings in a question read with the surrounding material. */
+.md :is(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+  font-size: 1.12em;
+  font-weight: var(--weight-label);
+  letter-spacing: 0;
+  line-height: 1.32;
+  margin-block: .65em .35em;
+}
