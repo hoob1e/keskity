@@ -1,4 +1,4 @@
-"""Fictional UI fixture; never an actual exam or a learner record."""
+"""Fictional UI fixtures; never an actual exam or a learner record."""
 import json
 
 
@@ -59,4 +59,76 @@ def fixture(core):
                                 "choice": {"options": ["$(-2,0)$", "$(0,3)$", "$(0,-2)$"], "correct_index": 2}},
         },
     }}
+    return json.dumps(pack, ensure_ascii=False)
+
+
+def help_fixture(core):
+    """Fictional vocabulary notes that leave the invariant-point reasoning open."""
+    pack = json.loads(fixture(core))
+    plan = pack["plan"]
+    plan["help"]["allowed_support"] += ["Reviewed vocabulary notes from the pack", "Local vocabulary and wording help"]
+    plan["help"]["reveal_policy"] = (
+        "Use study help for wording, not for solving the problem. Try an answer before consulting the solution."
+    )
+    plan["help"]["independence_conditions"] = "No in-app study help, hint, solution, or outside help used."
+    plan["approval"]["digest"] = core["plan_digest"](plan)
+    item = pack["extensions"]["studyHub"]["items"]["moving-slope"]
+    item["explain_selection"] = True
+    item["inline_help"] = [
+        {
+            "id": "slope", "term": "Slope", "aliases": ["gradient"],
+            "definition": "A line’s slope tells you how much $y$ changes when $x$ increases by one unit.",
+            "ask_further": ["definition"],
+            "example": "A ramp rises $3$ metres over a horizontal distance of $6$ metres. Its slope is $3/6$, or $1/2$.",
+            "translation": {"lang": "fi", "text": "**Kulmakerroin**. Se kertoo, kuinka paljon $y$ muuttuu, kun $x$ kasvaa yhdellä."},
+        },
+        {
+            "id": "slider", "term": "Slider",
+            "definition": "A control that lets you choose a value by moving a handle along a track.",
+        },
+    ]
+    return json.dumps(pack, ensure_ascii=False)
+
+
+def test_fixture(core):
+    pack = json.loads(fixture(core))
+    pack.update(id="lines-test-demo", title="Lines & relationships")
+    spec = pack["extensions"]["studyHub"]
+    spec["study"] = {
+        "overview": "A timed check on intercepts, slope, and what equations tell you about a graph.",
+    }
+    moving, compare, intercept = pack["problems"]
+    moving["statement"] = (
+        "The graph shows one member of the family $y=mx+2$. "
+        "Does **every** line in this family pass through the same point? "
+        "Give its coordinates and use the equation to explain why."
+    )
+    moving["support"]["rubric"] = (
+        "- **2 points** for identifying $(0,2)$.\n"
+        "- **3 points** for showing that at $x=0$, the term $mx$ is zero for any $m$, so $y=2$."
+    )
+    spec["items"]["moving-slope"]["title"] = "A family of lines"
+    spec["items"]["moving-slope"]["visual"]["caption"] = "One line from the family."
+    compare["support"]["rubric"] = (
+        "- **2 points** for identifying the equal slopes or cancelling the $2x$ terms.\n"
+        "- **2 points** for explaining why the distinct intercepts or nonzero constant separation rule out an intersection."
+    )
+    slope = {
+        **compare,
+        "id": "find-rate",
+        "statement": "A line has equation $y=-4x+5$. By how much does $y$ change when $x$ increases by one?",
+        "support": {"hints": [], "solution": "It decreases by $4$: the coefficient of $x$ is $-4$.",
+                    "rubric": "", "tutor_notes": ""},
+        "review": {**compare["review"], "checks": [{"method": "derivation", "result": "pass",
+                   "scope": "Synthetic algebra", "evidence": "Subtract y(x) from y(x+1) to obtain -4.", "source_ids": []}]},
+    }
+    pack["problems"].append(slope)
+    spec["items"]["find-rate"] = {"title": "Read the rate of change", "topic": "Slope",
+                                 "choice": {"options": ["$-4$", "$4$", "$5$"], "correct_index": 0}}
+    spec["test"] = {
+        "minutes": 25,
+        "questions": [{"id": task["id"], "points": points}
+                      for task, points in ((intercept, 3), (slope, 2), (moving, 5), (compare, 4))],
+        "allowed_aids": ["hints", "interactive_visuals"],
+    }
     return json.dumps(pack, ensure_ascii=False)

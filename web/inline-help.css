@@ -1,0 +1,73 @@
+.study-explain-picker { display: grid; gap: .5rem; min-inline-size: 0; }
+.study-explain-picker label { font-weight: var(--weight-label); font-size: var(--text-small); }
+.study-explain-picker textarea { min-block-size: 5.75rem; font-size: var(--text-body); }
+.study-explain-status:empty { display: none; }
+.study-help-passage-section > h3 { margin-block-end: .5rem; }
+.study-help-passage-section:has(> h3) { border-block-start: 1px solid var(--edge); padding-block-start: .75rem; }
+.study-overview-actions { align-items: center; }
+.study-overview-actions .button { border-color: var(--edge); }
+.study-help-note > .button { margin-block-start: .5rem; }
+.study-help-credit { color: var(--muted); overflow-wrap: anywhere; }
+.study-help-ask .icon { inline-size: .95rem; }
+.study-help-ask[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.study-help-ask:focus-visible { outline-offset: 2px; }
+.study-help-status { color: var(--accent); gap: .3rem; }
+.study-help-target::selection, .study-help-target *::selection {
+  background: color-mix(in srgb, var(--accent) 24%, var(--card));
+  color: var(--ink);
+}
+[data-study-passage]::highlight(reviewed-study-term), [data-study-passage] *::highlight(reviewed-study-term) { color: var(--ink); background: var(--tint); }
+
+.study-help-dialog {
+  inline-size: min(calc(100vw - 1.5rem), 29rem);
+  max-block-size: 84dvh;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scroll-padding-block: .65rem;
+}
+.study-help-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+}
+.study-help-disclosure[data-open] { grid-template-rows: 1fr; opacity: 1; visibility: visible; }
+.study-help-disclosure-clip { min-block-size: 0; overflow: clip; }
+.study-followup { padding: .35rem .05rem .15rem; }
+.study-followup-reply {
+  display: grid; gap: .55rem; min-inline-size: 0; padding: .75rem;
+  background: color-mix(in srgb, var(--card) 78%, var(--tint));
+  border: 1px solid var(--edge); border-radius: 8px;
+}
+.study-followup-reply strong { font-size: var(--text-small); font-weight: var(--weight-label); }
+.study-followup-reply .pill { color: var(--accent); border-color: var(--edge); }
+@media (prefers-reduced-motion: no-preference) {
+  /* The accordion resizes only this top-layer panel, not the question beneath it. */
+  .study-help-disclosure[data-animate] {
+    transition: grid-template-rows 180ms var(--ease-out), opacity var(--press-speed) var(--ease-out), visibility 180ms;
+  }
+}
+.study-help-browser { display: grid; gap: .85rem; min-inline-size: 0; overflow-wrap: anywhere; }
+.study-help-terms { display: grid; gap: .3rem; list-style: none; margin: 0; padding: 0; }
+.study-help-term {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  inline-size: 100%; min-block-size: 2.75rem; padding: .45rem .7rem;
+  color: var(--ink); text-align: start; background: var(--surface); border: 1px solid var(--edge);
+  border-radius: 7px; font: inherit; cursor: pointer;
+}
+.study-help-term strong { min-inline-size: 0; font-weight: var(--weight-label); }
+.study-help-term .icon { color: var(--accent); inline-size: .95rem; }
+.study-help-term:active { background: var(--tint); }
+.study-help-back { justify-self: start; }
+@media (hover: hover) and (pointer: fine) {
+  .study-help-term:hover { background: var(--tint); }
+  .study-help-ask:hover { text-decoration: underline; }
+}
+@media (pointer: coarse), (max-width: 35rem) {
+  .study-help-dialog .icon-button, .study-help-control, .study-help-ask.button { min-block-size: 2.75rem; }
+}
+@media (forced-colors: active) {
+  .study-help-target::selection, .study-help-target *::selection { color: HighlightText; background: Highlight; }
+  [data-study-passage]::highlight(reviewed-study-term), [data-study-passage] *::highlight(reviewed-study-term) { color: HighlightText; background: Highlight; }
+}

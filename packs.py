@@ -8,6 +8,9 @@ from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from xml.etree import ElementTree as ET
 
+from inline_help import index_entries, validate_entries
+from practice_specs import test_config
+
 DEFAULT_VALIDATOR = Path.home() / ".agents/skills/problem-sets/scripts/problem_sets.py"
 MAX_PACKET = 2 * 1024 * 1024
 MAX_ASSET = 4 * 1024 * 1024
@@ -97,16 +100,17 @@ def study_hub_config(packet):
     """Validate viewer options separately from the released problem contract."""
     spec = packet.get("extensions", {}).get("studyHub")
     if spec is None:
-        return {}, {}
-    if (not isinstance(spec, dict) or set(spec) - {"version", "items", "study"}
+        return {}, {}, None
+    if (not isinstance(spec, dict) or set(spec) - {"version", "items", "study", "test"}
             or type(spec.get("version")) is not int or spec["version"] != 1
             or not isinstance(spec.get("items", {}), dict)):
         raise ValueError("Expected extensions.studyHub version 1.")
     study = study_metadata(spec["study"]) if "study" in spec else {}
     result = {}
     problems = {p["id"]: p for p in packet["problems"]}
+    item_fields = {"visual", "choice", "title", "topic", "inline_help", "explain_selection"}
     for pid, config in spec.get("items", {}).items():
-        if pid not in problems or not isinstance(config, dict) or not config or set(config) - {"visual", "choice", "title", "topic"}:
+        if pid not in problems or not isinstance(config, dict) or not config or set(config) - item_fields:
             raise ValueError(f"Invalid Study Hub options for {pid}.")
         out = {k: study_text(config[k], f"Problem {k}", n)
                for k, n in (("title", 100), ("topic", 60)) if k in config}
@@ -128,8 +132,22 @@ def study_hub_config(packet):
             if len(set(options)) != len(options) or type(i) is not int or not 0 <= i < len(options) or problems[pid]["status"] not in {"checked", "retired"}:
                 raise ValueError(f"{pid}: multiple choice requires distinct options and a checked key.")
             out["choice"] = {"options": options, "correct_index": i}
+        if "inline_help" in config:
+            if "test" in spec or problems[pid]["status"] not in {"checked", "retired"}:
+                raise ValueError(f"{pid}: inline help is only for checked untimed practice.")
+            out["inline_help"] = validate_entries(config["inline_help"], pid)
+        if "explain_selection" in config:
+            allowed = config["explain_selection"]
+            if type(allowed) is not bool:
+                raise ValueError(f"{pid}: explain_selection must be true or false.")
+            if allowed and ("test" in spec or problems[pid]["status"] not in {"checked", "retired"}):
+                raise ValueError(f"{pid}: local explanations are only for checked untimed practice.")
+            if allowed:
+                out["explain_selection"] = True
         result[pid] = out
-    return study, result
+    if "test" in spec and not isinstance(spec["test"], dict):
+        raise ValueError("Expected a practice test configuration object.")
+    return study, result, spec.get("test")
 
 
 def adapt(core, raw, uploaded):
@@ -179,20 +197,20 @@ def adapt(core, raw, uploaded):
             raise ValueError("Not a released problem set: " + " · ".join(errors[:3]))
         if packet["plan"]["participation"] != "individual":
             raise ValueError("This hub imports individual practice packets, not group evidence.")
-        study, items = study_hub_config(packet)
+        study, items, test = study_hub_config(packet)
 
     problems = []
     for task in packet["problems"]:
         if task["status"] not in ("checked", "experimental"):
             continue
         cfg = items.get(task["id"], {})
-        widgets = {k: cfg[k] for k in ("visual", "choice") if k in cfg}
+        conditions = {k: cfg[k] for k in ("visual", "choice", "inline_help", "explain_selection") if k in cfg}
         support = task["support"]
         digest = core["problem_digest"](task)
         problems.append({
-            **{k: cfg[k] for k in ("title", "topic") if k in cfg},
+            **{k: cfg[k] for k in ("title", "topic", "inline_help", "explain_selection") if k in cfg},
             "id": task["id"], "digest": digest,
-            "version": core["digest"]([digest, widgets]),
+            "version": core["digest"]([digest, conditions]),
             "statement": task["statement"], "status": task["status"],
             "uncertainty": task.get("uncertainty"), "assets": task["assets"],
             "visual": cfg.get("visual"), "choice": cfg.get("choice"),
@@ -209,6 +227,8 @@ def adapt(core, raw, uploaded):
     }
     if study:
         pack["study"] = study
+    if test is not None:
+        pack["test"] = test_config(test, problems)
     pack["key"] = core["digest"](pack)
     return pack, assets
 
@@ -216,10 +236,11 @@ def adapt(core, raw, uploaded):
 def public_pack(pack):
     data = {k: v for k, v in pack.items() if k != "problems"}
     data["problems"] = [{
-        **{k: p[k] for k in ("id", "version", "statement", "status", "uncertainty", "visual", "title", "topic") if k in p},
+        **{k: p[k] for k in ("id", "version", "statement", "status", "uncertainty", "visual", "title", "topic", "explain_selection") if k in p},
         "assets": [a for a in p["assets"] if a["role"] == "prompt"],
         "options": p["choice"]["options"] if p["choice"] else [],
         "hint_count": len(p["hints"]),
+        **({"inline_help": index_entries(p["inline_help"])} if "inline_help" in p else {}),
         "has_solution": bool(p["solution"] or p["rubric"] or any(a["role"] == "support" for a in p["assets"])),
         "can_check": p["status"] == "checked" and not p["choice"] and not (p["visual"] or any(a["role"] == "prompt" for a in p["assets"])),
     } for p in pack["problems"]]

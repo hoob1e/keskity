@@ -2,7 +2,7 @@
 
 Ideas for the next site changes. Nothing here is scheduled yet.
 
-[Build 03](design/build-03/README.md) includes Focus mode and independent interface, title, and reading fonts. Timed practice tests are the next planned build.
+[Build 10](design/build-10/README.md) adds local model readiness in Settings. The next checkpoint is to try a [real published pack](PACKS.md#first-pack-author-check-import) and use the pilot to find gaps in authoring, import, and study.
 
 ## Dashboard direction
 
@@ -21,8 +21,9 @@ Local references in `~/Pictures/Screenshots/` (direction, not templates):
 
 ## Study tools
 
-- **Inline help from a selection.** Select text on a question or other material to request a definition, example, or translation. On a problem, check its help policy and use the local model to assess whether the requested help would give too much away. The model cannot override explicit restrictions. Prefer an allowed explanation already in the problem set, in full or shortened. If none exists, generate a short response locally or draw on an attributed Wikipedia or Simple English Wikipedia summary. Cache or prepare these in the background or at import so they open quickly. For online lookups, send only public search terms, not private course or learner context.
-- **Ask further.** From the same inline panel, ask the local model a brief follow-up or copy a ready-to-paste prompt for Pi Desktop or another tool. Include the selected passage, question, course, set, and problem or section, plus a pointer to the source course file when available. The learner chooses what to share.
+- **Broader inline help.** Extend selection help to full-length reading and add curated source excerpts where a local explanation needs more context. Keep reviewed notes distinct from generated text and respect pack permissions.
+- **Optional Pi/Codex skill.** Decide whether a shared skill adds value to the standalone copied explanation prompt. Don’t attach drafts, answers, or keys, and don’t send anything automatically.
+- **Check online.** Review Simple English Wikipedia lookup separately. Let the learner review the public search term before sending it to the MediaWiki API. Show a short plain-text excerpt, its source, and its license. Local help permissions don’t authorize sharing text online.
 - **Concept activity.** Use the local model to scan imported material in the background for topics and concepts. Link those tags to study activity for a **Concepts explored** view. Optionally log which concepts prompted inline help requests as a clue to what felt unclear. A scan alone is not learner activity, and a lookup does not establish a gap.
 - **What is this used for?** Add short motivation notes for courses and concepts in the course overview. The local model can draft them. Example: **MAA06 — Derivative:** “In physics, the derivative of position with respect to time gives velocity.”
 - **Learner feedback.** Let learners tag problems or material as hard, easy, boring, interesting, or urgent. Use these tags to sort work and help decide what to study next.
@@ -36,5 +37,3 @@ Local references in `~/Pictures/Screenshots/` (direction, not templates):
 ## Later
 
 - **Interactive visualization toolkit.** Add authoring tools for interactive 3D or more complex visuals when they make a difficult problem easier to reason about. Start from the existing line widget and [pack authoring contract](PACKS.md).
-
-**Next build to review:** timed practice tests from released test packs.

@@ -110,7 +110,7 @@ function problemSupport(pack, task, state, isCurrent) {
 
   paintHints();
   return {hintStatus: task.hint_count ? div("row hint-status", icon("bulb"), hintStatus) : null,
-    buttons: div("row problem-support", Array.from({length: task.hint_count}, (_, i) => hint(i)), solution)};
+    buttons: div("row problem-support", Array.from({length: task.hint_count}, (_, i) => hint(i)), solution), solution};
 }
 
 function solver(pack, pid, state) {
@@ -118,12 +118,20 @@ function solver(pack, pid, state) {
   const task = pack.problems[index];
   const views = attemptViews(pack, task, state.history);
   const page = div("problem-page");
+  const renderedPrompt = studyPassage(markdown(task.statement, pack.key, task.assets, true), "prompt", "Question");
   const aides = problemSupport(pack, task, state, () => page.isConnected);
   const editor = answerEditor(pack, task, state.draft, aides.hintStatus, (answer, autoCheck) =>
     views.saved(answer, home.grader && task.can_check && autoCheck));
   editor.form.append(views.live);
   const art = [...figures(task.statement, pack.key, task.assets), task.visual ? plot(task.visual) : null].filter(Boolean);
-  const prompt = div("problem-prompt", markdown(task.statement, pack.key, task.assets, true),
+  art.forEach((figure, i) => {
+    const caption = figure.querySelector("figcaption");
+    if (caption) studyPassage(caption, "figure", "Figure " + (i + 1) + " caption");
+  });
+  const heading = studyPassage(element("h1", {id: "problem-title", tabindex: -1}, problemTitle(task)), "title", "Problem title");
+  const topic = task.topic ? studyPassage(text("p", task.topic, "eyebrow"), "topic", "Topic") :
+    text("p", pack.course || "Practice", "eyebrow");
+  const prompt = div("problem-prompt", renderedPrompt,
     task.uncertainty ? div("notice", text("strong", "What remains open"), text("p", task.uncertainty.what),
       text("p", task.uncertainty.progress), text("p", task.uncertainty.stop_or_resume)) : null);
   const goToAnswer = button(["Go to answer", icon("down")], () => {
@@ -132,8 +140,7 @@ function solver(pack, pid, state) {
   });
   const statement = element("article", {class: "card task-card", lang: pack.language},
     div("problem-heading",
-      text("p", task.topic || pack.course || "Practice", "eyebrow"),
-      element("h1", {id: "problem-title"}, problemTitle(task)),
+      topic, heading,
       task.status === "experimental" ? pill("Unresolved investigation") : null),
     div("problem-body" + (art.length ? " with-art" : ""), prompt, art.length ? div("problem-artwork", art) : null),
     div("problem-actions", aides.buttons, goToAnswer));
@@ -142,9 +149,14 @@ function solver(pack, pid, state) {
   page.append(div("problem-toolbar", problemLocation(pack), problemNavigation(pack, index)), statement, editor.form);
   if (policy) page.append(policy);
   page.append(views.host);
+  const inline = studyHelp(page, {pack, task, opened: state.explanation_opened, restore: heading});
+  if (inline.control) aides.buttons.insertBefore(inline.control, aides.solution);
+  if (inline.status) editor.meta.prepend(inline.status);
+  page.append(...inline.layers);
   main.dataset.readerView = "problem";
   main.replaceChildren(page);
   rememberProblem(home.demo, pack.key, pid, index);
+  return inline.dispose;
 }
 
 function plot(spec) {

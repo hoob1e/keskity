@@ -5,17 +5,18 @@ const independentRoute = key => "#independent/" + key;
 function studyDetail(packs, code, home) {
   const independent = !code;
   const area = independent ? independentRoute(packs[0].key) : courseRoute(code);
-  const title = packs.find(pack => pack.study.title)?.study.title || (independent ? packs[0].title : code);
+  const title = firstStudyNote(packs, "title") || {value: independent ? packs[0].title : code, key: packs[0].key, language: packs[0].language};
+  const heading = studyPassage(element("h1", {tabindex: -1}, title.value), "title", "Study title", title.key, title.language);
   const overview = firstStudyNote(packs, "overview");
   const uses = firstStudyNote(packs, "uses");
   const fact = firstStudyNote(packs, "fact");
-  const scope = uniqueLabels(packs.flatMap(pack => pack.scope));
-  const concepts = uniqueLabels(packs.flatMap(pack => pack.study.concepts || []));
+  const scope = uniqueStudyLabels(packs, pack => pack.scope);
+  const concepts = uniqueStudyLabels(packs, pack => pack.study.concepts || []);
   const entries = problemEntries(packs);
   const hero = element("header", {class: "card study-hero"},
-    div("study-hero-kicker", code && code !== title ? codeTag(code) : null,
+    div("study-hero-kicker", code && code !== title.value ? codeTag(code) : null,
       text("span", independent ? "Independent study" : "Course", "small")),
-    text("h1", title),
+    heading,
     text("p", howMany(packs.length, "study pack") + " · " + howMany(entries.length, "problem"), "small"));
 
   const jump = element("a", {class: "arrow-link text-action", href: area + "/problems"},
@@ -26,19 +27,26 @@ function studyDetail(packs, code, home) {
     jumpToStudyProblems();
   });
 
+  const actions = div("row study-overview-actions", jump);
   const about = element("section", {class: "card study-overview"},
-    div("card-top", text("h2", "Overview"), jump),
-    overview ? text("p", overview.value, "study-description") : null,
+    div("card-top", text("h2", "Overview"), actions),
+    overview ? studyPassage(text("p", overview.value, "study-description"), "overview", "Overview", overview.key, overview.language) : null,
     div("study-overview-columns",
       element("section", {}, text("h3", "Scope"),
-        scope.length ? element("ul", {class: "scope-list"}, scope.map(topic => text("li", topic))) :
+        scope.length ? element("ul", {class: "scope-list"}, scope.map(({value, key, language}) =>
+          studyPassage(text("li", value), "scope", value, key, language))) :
           text("p", "No scope listed in the imported pack.", "small muted")),
-      uses ? element("section", {}, text("h3", "What it’s used for"), text("p", uses.value, "small muted")) : null),
+      uses ? element("section", {}, text("h3", "What it’s used for"),
+        studyPassage(text("p", uses.value, "small muted"), "uses", "What it’s used for", uses.key, uses.language)) : null),
     concepts.length ? element("section", {class: "study-concepts"},
-      text("h3", "Featured concepts"), element("ul", {class: "concept-list"}, concepts.map(name => text("li", name)))) : null);
-  main.replaceChildren(div("study-layout",
-    div("study-intro", hero, about), studySide(packs, entries, code, fact, home),
-    problemCatalogue(entries, area, home)));
+      text("h3", "Featured concepts"), element("ul", {class: "concept-list"}, concepts.map(({value, key, language}) =>
+        studyPassage(text("li", value), "concepts", value, key, language)))) : null);
+  const layout = div("study-layout", div("study-intro", hero, about, code ? testShelf(home.tests.filter(t => t.course === code)) : null),
+    studySide(packs, entries, code, fact, home), problemCatalogue(entries, area, home));
+  const help = studyHelp(layout, {restore: heading});
+  if (help.control) actions.prepend(help.control);
+  main.replaceChildren(layout, ...help.layers);
+  return help.dispose;
 }
 
 function jumpToStudyProblems() {
@@ -49,17 +57,17 @@ function jumpToStudyProblems() {
 
 function firstStudyNote(packs, key) {
   const pack = packs.find(p => p.study[key]);
-  return pack ? {value: pack.study[key], source: pack.title} : null;
+  return pack ? {value: pack.study[key], source: pack.title, key: pack.key, language: pack.language} : null;
 }
 
-function uniqueLabels(values) {
+function uniqueStudyLabels(packs, labels) {
   const seen = new Set();
-  return values.filter(value => {
-    const key = value.trim().toLowerCase();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return packs.flatMap(pack => labels(pack).flatMap(value => {
+    const label = value.trim().toLowerCase();
+    if (!label || seen.has(label)) return [];
+    seen.add(label);
+    return [{value, key: pack.key, language: pack.language}];
+  }));
 }
 
 function studySide(packs, entries, code, fact, home) {
@@ -93,5 +101,5 @@ function studySide(packs, entries, code, fact, home) {
   return element("aside", {class: "study-side", "aria-label": "Study details and progress"},
     details, progress, fact ? element("section", {class: "card study-fact"},
       div("study-panel-title", icon("bulb"), text("h2", "From the material")),
-      text("p", fact.value), text("p", fact.source, "small muted")) : null);
+      studyPassage(text("p", fact.value), "fact", "From the material", fact.key, fact.language), text("p", fact.source, "small muted")) : null);
 }

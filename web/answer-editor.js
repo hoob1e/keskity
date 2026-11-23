@@ -1,6 +1,6 @@
 "use strict";
 
-function answerEditor(pack, task, savedDraft, hints, onSubmit) {
+function answerEditor(pack, task, savedDraft, supportStatus, onSubmit) {
   const path = pack.key + "/" + encodeURIComponent(task.id);
   let draft = savedDraft;
   let busy = false;
@@ -11,7 +11,7 @@ function answerEditor(pack, task, savedDraft, hints, onSubmit) {
   const save = button([icon("note"), "Save draft"], saveDraft);
   const submit = element("button", {class: "button primary", type: "submit"}, "Submit answer");
   const heading = element("h2", {class: "feature-title", id: "answer-heading", tabindex: "-1"}, "Your answer");
-  const meta = div("answer-meta", hints, draftBadge, discard);
+  const meta = div("answer-meta", supportStatus, draftBadge, discard);
   const help = element("select", {name: "help"}, [
     ["unknown", "Not specified"], ["no-help", "No outside help"],
     ["hint", "Used an outside hint"], ["solution", "Consulted an outside solution"],
@@ -21,7 +21,7 @@ function answerEditor(pack, task, savedDraft, hints, onSubmit) {
     text("legend", "Choose one option"),
     task.options.map((value, i) => element("label", {class: "choice"},
       element("input", {type: "radio", name: "choice", value: i, required: ""}),
-      markdown(value, pack.key, [], true))))
+      studyPassage(markdown(value, pack.key, [], true), "option", "Option " + (i + 1)))))
     : element("textarea", {name: "answer", class: "reading-text", rows: 6, maxlength: 12000,
       required: "", placeholder: "Write your reasoning…", "aria-label": "Your reasoning"});
   const form = element("form", {class: "card answer-card", "aria-labelledby": "answer-heading"},
@@ -106,5 +106,5 @@ function answerEditor(pack, task, savedDraft, hints, onSubmit) {
   });
   hydrate();
   paint();
-  return {form, heading};
+  return {form, heading, meta};
 }

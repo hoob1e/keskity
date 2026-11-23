@@ -81,9 +81,13 @@
 
   const dialog = document.querySelector("#appearance-dialog");
   const fields = dialog.querySelector("form").elements;
+  const reset = dialog.querySelector("[data-reset-settings]");
+  const model = localModelSettings(dialog.querySelector("#model-settings"));
   let panel = "appearance";
   let opener;
   dialog.addEventListener("close", () => {
+    if (dialog.open) return;
+    model.cancel();
     if (opener?.isConnected) opener.focus({preventScroll: true});
     opener = null;
   });
@@ -107,12 +111,17 @@
     updateOutputs();
   }
   function selectPanel(name) {
+    if (root.dataset.view === "test-run") name = "reading";
     panel = name;
-    dialog.querySelectorAll("[data-panel]").forEach(b => b.setAttribute("aria-pressed", b.dataset.panel === name));
-    dialog.querySelectorAll("[data-settings]").forEach(section => section.hidden = section.dataset.settings !== name);
+    dialog.querySelectorAll("[data-panel]").forEach(b => b.setAttribute("aria-pressed", b.dataset.panel === panel));
+    dialog.querySelectorAll("[data-settings]").forEach(section => section.hidden = section.dataset.settings !== panel);
+    reset.hidden = panel === "model";
+    if (panel === "model") model.refresh();
+    else model.cancel();
   }
   dialog.querySelectorAll("[data-panel]").forEach(b => b.addEventListener("click", () => selectPanel(b.dataset.panel)));
-  dialog.querySelector("[data-reset-settings]").addEventListener("click", () => {
+  reset.addEventListener("click", () => {
+    if (panel === "model") return;
     prefs = {...prefs, ...(panel === "reading" ? readingDefaults : themeDefaults)};
     apply();
     sync();
@@ -134,6 +143,9 @@
     const trigger = e.target.closest("[data-open-appearance], [data-open-reading]");
     if (!trigger || dialog.open) return;
     opener = trigger;
+    const readingOnly = document.documentElement.dataset.view === "test-run";
+    dialog.querySelector(".settings-sections").hidden = readingOnly;
+    dialog.querySelector("#settings-title").textContent = readingOnly ? "Reading settings" : "Settings";
     const start = trigger.hasAttribute("data-open-reading") ? "reading" : "appearance";
     sync();
     selectPanel(start);
@@ -211,3 +223,75 @@
     sync();
   }).catch(() => {}); // Defaults still work without local font storage.
 })();
+
+function localModelSettings(panel) {
+  const state = panel.querySelector(".model-state");
+  const message = panel.querySelector(".model-status-note");
+  const checkAgain = panel.querySelector("[data-check-model]");
+  const connection = panel.querySelector(".model-connection");
+  const address = connection.querySelector("code");
+  const setup = panel.querySelector(".model-setup");
+  const command = setup.querySelector("[data-grader-command]");
+  const enable = setup.querySelector("[data-grader-enable]");
+  const flag = enable.querySelector("code");
+  const states = {
+    off: ["Off", "Keskity started without a grader. Reviewed notes and answer keys still work."],
+    starting: ["Starting", "The grader is loading the model. Leave its terminal open and check again in a moment."],
+    ready: ["Ready", "The grader is ready for local Study help and eligible feedback."],
+    unavailable: ["Unavailable", "Check that the grader is running at the address below, then try again."],
+  };
+  let request;
+
+  function show(key, label, note) {
+    state.dataset.state = key;
+    state.textContent = label;
+    message.textContent = note;
+  }
+
+  function paint({state: key, port, host_only: hostOnly}) {
+    const [label, note] = states[key];
+    show(key, label, hostOnly ? "Local model actions are only available on the host computer." : note);
+    connection.hidden = !port;
+    address.textContent = port ? "127.0.0.1:" + port : "";
+    setup.hidden = hostOnly === true;
+    enable.hidden = port != null;
+    const selectedPort = port || 8766;
+    command.textContent = (selectedPort === 8766 ? "" : "STUDY_HUB_GRADER_PORT=" + selectedPort + " ") + "sh start-grader.sh";
+    flag.textContent = "--grader-port " + selectedPort;
+  }
+
+  function cancel() {
+    request?.abort();
+    request = null;
+    checkAgain.removeAttribute("aria-disabled");
+  }
+
+  async function refresh() {
+    if (request || panel.hidden || !panel.closest("dialog").open ||
+        document.documentElement.dataset.view === "test-run") return;
+    const check = new AbortController();
+    request = check;
+    checkAgain.setAttribute("aria-disabled", "true");
+    show("checking", "Checking…", "Checking the local grader connection.");
+    try {
+      const result = await api("/api/model-status", undefined, {signal: check.signal});
+      if (check !== request) return;
+      if (!Object.hasOwn(states, result?.state) ||
+          (result.state !== "off" && (!Number.isInteger(result.port) || result.port < 0 || result.port > 65535))) {
+        throw new Error("No model status");
+      }
+      paint(result);
+    } catch {
+      if (check !== request) return;
+      show("unavailable", "Unavailable", "Keskity couldn’t check model status. If you just updated the app, restart it and try again.");
+      connection.hidden = setup.hidden = true;
+    } finally {
+      if (request === check) {
+        request = null;
+        checkAgain.removeAttribute("aria-disabled");
+      }
+    }
+  }
+  checkAgain.addEventListener("click", refresh);
+  return {refresh, cancel};
+}

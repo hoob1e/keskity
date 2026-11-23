@@ -6,6 +6,8 @@ from pathlib import Path
 import sqlite3
 import uuid
 
+from practice_specs import test_summary
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS packs(
   key TEXT PRIMARY KEY, payload TEXT NOT NULL, imported_at TEXT NOT NULL
@@ -90,11 +92,15 @@ class Store:
             raise LookupError("This pack isn’t in the library.")
         return json.loads(row[0])
 
-    def asset(self, key, path):
+    def asset(self, key, path, *, practice_test=False):
         with self.connect() as db:
             row = db.execute("SELECT mime, body FROM assets WHERE pack_key=? AND path=?", (key, path)).fetchone()
+            if not practice_test and row is not None:
+                pack = db.execute("SELECT payload FROM packs WHERE key=?", (key,)).fetchone()
+                if "test" in json.loads(pack["payload"]):
+                    row = None
         if row is None:
-            raise LookupError("Image not in this pack.")
+            raise LookupError("Image not available here.")
         return row
 
     def save_exam(self, exam_id, title, course, day):
@@ -118,7 +124,7 @@ class Store:
             output = []
             for row in rows:
                 pack = json.loads(row["payload"])
-                if (key and pack["course"]) or (not key and pack["course"] != course):
+                if "test" in pack or (key and pack["course"]) or (not key and pack["course"] != course):
                     continue
                 attempts = {r["problem_id"]: (r["n"], r["latest"]) for r in db.execute(
                     "SELECT problem_id, COUNT(*) n, MAX(submitted_at) latest "
@@ -136,7 +142,7 @@ class Store:
                         "choice": p["choice"] is not None,
                     })
                 output.append({
-                    **{k: pack[k] for k in ("key", "title", "scope")},
+                    **{k: pack[k] for k in ("key", "title", "scope", "language")},
                     "study": pack.get("study", {}),
                     "problems": problems,
                 })
@@ -149,12 +155,15 @@ class Store:
         first = today - timedelta(days=34)
         with self.connect() as db:
             exams = [dict(r) for r in db.execute("SELECT * FROM exams ORDER BY day,title")]
-            packs = []
+            packs, tests = [], []
             by_pack = {}
             for row in db.execute("SELECT pack_key, problem_id, COUNT(*) AS submissions FROM attempts GROUP BY pack_key,problem_id"):
                 by_pack.setdefault(row["pack_key"], {})[row["problem_id"]] = row["submissions"]
             for row in db.execute("SELECT * FROM packs ORDER BY imported_at DESC"):
                 p = json.loads(row["payload"])
+                if "test" in p:
+                    tests.append(test_summary(p))
+                    continue
                 counts = by_pack.get(p["key"], {})
                 checked = [a["id"] for a in p["problems"] if a["status"] == "checked"]
                 all_ids = [a["id"] for a in p["problems"]]
@@ -169,7 +178,7 @@ class Store:
             chart = {row["day"]: row["n"] for row in db.execute(
                 "SELECT day,COUNT(*) AS n FROM attempts WHERE day BETWEEN ? AND ? GROUP BY day",
                 (first.isoformat(), today.isoformat()))}
-        return {"today": today.isoformat(), "exams": exams, "packs": packs,
+        return {"today": today.isoformat(), "exams": exams, "packs": packs, "tests": tests,
                 "activity": [{"day": (first+timedelta(days=i)).isoformat(), "count": chart.get((first+timedelta(days=i)).isoformat(), 0)}
                              for i in range(35)]}
 
@@ -184,13 +193,13 @@ class Store:
             draft = db.execute("SELECT revision,body FROM drafts WHERE pack_key=? AND problem_id=?", (key, pid)).fetchone()
             hints = [row[0] for row in db.execute(
                 "SELECT ordinal FROM hint_opens WHERE pack_key=? AND problem_id=? ORDER BY ordinal", (key, pid))]
-            earlier_hint = db.execute(
-                "SELECT 1 FROM exposures WHERE pack_key=? AND problem_id=? AND kind='hint'", (key, pid)).fetchone()
+            exposed = {r[0] for r in db.execute(
+                "SELECT kind FROM exposures WHERE pack_key=? AND problem_id=? AND kind IN ('hint','explanation')", (key, pid))}
             history = db.execute("SELECT * FROM attempts WHERE pack_key=? AND problem_id=? "
                                  "ORDER BY submitted_at DESC LIMIT 25", (key, pid)).fetchall()
         return {"draft": {**json.loads(draft["body"]), "revision": draft["revision"]} if draft else None,
-                "hint_indexes": hints, "earlier_hint": bool(earlier_hint) and not hints,
-                "history": [attempt_row(row) for row in history]}
+                "hint_indexes": hints, "earlier_hint": "hint" in exposed and not hints,
+                "explanation_opened": "explanation" in exposed, "history": [attempt_row(row) for row in history]}
 
     def save_draft(self, key, pid, body):
         revision = str(uuid.uuid4())

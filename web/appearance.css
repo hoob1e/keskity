@@ -36,7 +36,7 @@
   :root { --active-glow: 0; }
 }
 
-:where([data-reader-view="problem"], [data-reader-view="test"], .reading-preview) .reading-text {
+:where([data-reader-view="problem"], [data-reader-view="test"], [data-reader-view="study-help"], .reading-preview) .reading-text {
   max-inline-size: min(100%, var(--reader-width));
   font-family: var(--reader-font);
   font-size: var(--reader-size);
@@ -65,7 +65,31 @@
 }
 .settings-fields .font-name { grid-column: 1/-1; }
 .settings-actions { border-top: 1px solid var(--edge); padding-top: .85rem; }
-.settings-actions .primary { min-inline-size: 5rem; }
+.settings-actions .primary { margin-inline-start: auto; min-inline-size: 5rem; }
+.model-settings-card {
+  display: grid; gap: .65rem; min-inline-size: 0;
+  border: 1px solid var(--edge); border-radius: 8px;
+  background: var(--surface); padding: .875rem;
+}
+.model-settings-card .model-state { background: var(--card); font-weight: var(--weight-label); }
+.model-state[data-state=ready] { background: var(--tint); color: var(--accent); }
+.model-state[data-state=unavailable] { background: var(--danger-bg); color: var(--danger); }
+.model-connection { display: flex; flex-wrap: wrap; gap: .25rem .65rem; margin: 0; font-size: var(--text-small); }
+.model-connection dt { color: var(--muted); }
+.model-connection dd { margin: 0; }
+.model-settings-card .button { justify-self: start; min-block-size: 2.5rem; }
+.model-settings-card .button[aria-disabled=true] { opacity: .65; cursor: progress; }
+.model-setup { font-size: var(--text-small); }
+.model-setup summary { color: var(--accent); font-weight: var(--weight-label); }
+.model-setup p { margin-block: .55rem 0; overflow-wrap: anywhere; }
+.model-setup pre {
+  margin-block: .45rem 0; padding: .45rem .6rem; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: 6px;
+}
+.model-setup code { font-size: .875em; }
+@media (pointer: coarse), (max-width: 35rem) {
+  .model-settings-card .button { min-block-size: 2.75rem; }
+}
 .glow-preview {
   display: grid;
   grid-template-columns: 3.5rem minmax(0, 1fr);

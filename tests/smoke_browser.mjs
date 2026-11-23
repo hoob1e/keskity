@@ -5,6 +5,11 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setTimeout as wait} from 'node:timers/promises';
 import {fileURLToPath} from 'node:url';
+import {exercisePracticeTests} from './browser_practice_test.mjs';
+import {exerciseInlineHelp} from './browser_inline_help.mjs';
+import {exerciseLocalExplanations} from './browser_selection_explain.mjs';
+import {exerciseModelStream} from './browser_model_stream.mjs';
+import {exerciseModelSettings} from './browser_model_settings.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const t = await mkdtemp(join(tmpdir(), 'study-hub-browser-'));
@@ -46,11 +51,14 @@ try {
     ws.addEventListener('error',reject,{once:true});
   });
   let n=0;
-  const responses = new Map(), crashes=[], requests=[];
+  const responses = new Map(), crashes=[], requests=[], requestDetails=[];
   ws.addEventListener('message', ({data}) => {
     const m=JSON.parse(data);
     if(m.method==='Runtime.exceptionThrown') crashes.push(m.params.exceptionDetails.text);
-    if(m.method==='Network.requestWillBeSent') requests.push(m.params.request.url);
+    if(m.method==='Network.requestWillBeSent') {
+      requests.push(m.params.request.url);
+      requestDetails.push(m.params.request);
+    }
     if(!m.id || !responses.has(m.id)) return;
     const {ok,fail}=responses.get(m.id);
     responses.delete(m.id);
@@ -79,6 +87,21 @@ try {
     await waitFor(sel);
     return evaluate('document.querySelector('+JSON.stringify(sel)+').click()');
   };
+  async function mouse(x, y, clickCount = 1) {
+    await call('Input.dispatchMouseEvent', {type:'mouseMoved', x, y});
+    await call('Input.dispatchMouseEvent', {type:'mousePressed', x, y, button:'left', clickCount});
+    await call('Input.dispatchMouseEvent', {type:'mouseReleased', x, y, button:'left', clickCount});
+  }
+  async function pointerClick(selector) {
+    await waitFor(selector);
+    const [x, y] = await until(() => evaluate(`(() => {
+      const node = document.querySelector(${JSON.stringify(selector)});
+      const r = node.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      return node.contains(document.elementFromPoint(x,y)) ? [x,y] : null;
+    })()`), 'Not clickable: ' + selector);
+    await mouse(x, y);
+  }
   async function cardHover(selector) {
 
     const card = JSON.stringify(selector);
@@ -318,8 +341,8 @@ try {
   await waitFor('.attempt');
   assert.equal((await (await fetch(origin+'/api/solver/'+await draftPath())).json()).draft,null);
   if (grader) {
-    await waitFor('.live-feedback .feedback');
-    assert((await evaluate('document.querySelector(".live-feedback").innerText')).includes('provisional'));
+    await waitFor('.live-feedback .feedback:not([aria-hidden])');
+    assert((await evaluate('document.querySelector(".live-feedback").textContent')).includes('provisional'));
     await image('feedback');
   }
   await click('.attempt input[type=checkbox]');
@@ -530,9 +553,25 @@ try {
   // Fast-forwarding a background headless tab can skip the first visibility callback.
   await wait(14500);
   await until(() => evaluate('document.querySelector(".tip-count").textContent === "2 / 3"'), 'Study tip did not auto-rotate');
+  await exercisePracticeTests({root, directory:t, downloads, origin, call, evaluate, until, waitFor, click,
+    editSetting, setTheme, escape, size, image, grader});
+  const studyChecks = {root, origin, call, evaluate, until, waitFor, click, pointerClick, mouse,
+    escape, size, setTheme, image, grader, requestDetails};
+  const inlinePack = await exerciseInlineHelp(studyChecks);
+  await exerciseLocalExplanations({...studyChecks, key: inlinePack});
+  if (grader) {
+    for (const path of ['/api/feedback', '/model-mark', '/api/ask-further/', '/api/explain-selection/',
+      '/api/define-selection/', '/api/translate-selection/']) {
+      assert(requestDetails.some(r => r.url.includes(path)
+        && Object.entries(r.headers).some(([key, value]) => key.toLowerCase() === 'accept' && value === 'application/x-ndjson')),
+      'No local model stream negotiated for '+path);
+    }
+  }
+  await exerciseModelStream({...studyChecks, key: inlinePack});
+  await exerciseModelSettings(studyChecks);
   assert.deepEqual(crashes,[]);
   assert(requests.filter(url => /^https?:/i.test(url)).every(url => url.startsWith(origin+'/')),requests.join('\n'));
-  console.log("Browser pass: dashboard, card hover and typography, Study overviews and problem controls, responsive solver, focus, hints, drafts, local fonts, tips, import, reading settings, answer checks and export" + (grader ? ", real local grading" : ""));
+  console.log("Browser pass: dashboard, card hover and typography, Study overviews and problem controls, responsive solver, focus, hints, drafts, local fonts, tips, import, reading settings, answer checks, export, timed practice tests, the study selection menu, and progressive model replies, and model readiness" + (grader ? ", real local grading, Ask further, and local explanation, definition, and translation" : ""));
 } finally {
   ws?.close();
   for (const child of [browser,app]) {

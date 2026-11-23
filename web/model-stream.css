@@ -1,0 +1,21 @@
+.model-text-preview {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.model-text-preview > p + p { margin-block-start: .35rem; }
+.model-mark-preview {
+  padding: .5rem .65rem;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.model-mark-preview .pill { margin-block-end: .3rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .model-text-fragment { transition: opacity var(--press-speed) var(--ease-out); }
+  @starting-style {
+    .model-text-fragment { opacity: .35; }
+  }
+}

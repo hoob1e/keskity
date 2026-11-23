@@ -102,7 +102,8 @@ function library(home, course, packKey) {
   for (const group of [list("Courses", courses.map(courseCount)), list("Independent study", independent.map(standalone))]) {
     if (group) host.append(group);
   }
-  if (!home.packs.length) host.append(text("p", "No packs yet.", "small muted library-empty"));
+  if (!home.packs.length) host.append(home.tests.length ? link("Practice tests", "#study", "workspace-link library-link")
+    : text("p", "No packs yet.", "small muted library-empty"));
 }
 
 function toggleLibrarySort(home) {
@@ -111,18 +112,24 @@ function toggleLibrarySort(home) {
   library(home, ...librarySelection);
 }
 
-function paintWorkspace(view, course = "", packKey = "") {
+function paintWorkspace(view, course = "", packKey = "", test = null) {
   $("#workspace").dataset.view = view;
   document.documentElement.dataset.view = view;
-  $("#problem-focus").hidden = $("#problem-reading").hidden = view !== "problem";
+  $("#problem-focus").hidden = view !== "problem";
+  $("#problem-reading").hidden = !["problem", "test-run", "test-result"].includes(view);
+  $("#test-tools").hidden = $("#test-aids-label").hidden = true;
+  $("#test-tools").replaceChildren();
+  $("#open-import").hidden = !!home?.demo || view === "test-run" || view === "test-result";
+  $("#open-help").hidden = view === "test-run";
+  $(".top-actions [data-open-appearance]").hidden = view === "test-run";
   if (view !== "problem") setProblemFocus(false);
-  const active = view === "course" || view === "problem" ? "study" : view;
+  const active = test || view === "course" || view === "problem" ? "study" : view;
   document.querySelectorAll(".workspace-nav [data-route]").forEach(a => {
     if (a.dataset.route === active) a.setAttribute("aria-current", active === view ? "page" : "location");
     else a.removeAttribute("aria-current");
   });
   const crumb = $("#breadcrumbs");
-  crumb.hidden = view !== "course" && view !== "problem";
+  crumb.hidden = !test && view !== "course" && view !== "problem";
   crumb.replaceChildren();
   if (!crumb.hidden) {
     crumb.append(link("Study", "#study"));
@@ -130,8 +137,11 @@ function paintWorkspace(view, course = "", packKey = "") {
     const label = course || standalone?.study_title || standalone?.title;
     if (label) {
       const href = course ? courseRoute(course) : independentRoute(packKey);
-      crumb.append(icon("right"), view === "problem" ? link(label, href + "/problems") : text("span", label));
+      const area = test ? testArea(test) : null;
+      crumb.append(icon("right"), view === "problem" ? link(label, href + "/problems") :
+        area && area.href !== "#study" ? link(label, area.href) : text("span", label));
     }
+    if (test) crumb.append(icon("right"), text("span", view === "test-run" ? test.title : "Practice tests"));
   }
   if (home) library(home, course, packKey);
 }
@@ -150,7 +160,9 @@ function studyPage(home) {
   main.replaceChildren(text("h1", "Study"));
   if (courseList) main.append(courseList);
   if (independentList) main.append(independentList);
-  if (!home.packs.length) main.append(div("empty study-course-list", text("p", "No packs yet."),
+  const tests = testShelf(home.tests, true);
+  if (tests) main.append(tests);
+  if (!home.packs.length && !tests) main.append(div("empty study-course-list", text("p", "No packs yet."),
     home.demo ? null : button("Import pack", () => $("#open-import").click(), "button primary")));
 }
 

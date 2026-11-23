@@ -40,7 +40,7 @@ md.renderer.rules.image = (tokens, i, _options, ctx) => {
   const path = t.attrGet("src");
   let asset;
   try { asset = ctx.assets.get(decodeURIComponent(path)); } catch {}
-  return asset ? '<img class="embedded" loading="lazy" src="' + escAttr(imageRoute(ctx.key, asset)) + '" alt="' + escAttr(asset.alt) + '">'
+  return asset ? '<img class="embedded" loading="lazy" src="' + escAttr(ctx.image(asset)) + '" alt="' + escAttr(asset.alt) + '">'
     : escAttr(t.content || "Image not included");
 };
 // KaTeX auto-render handles dollar delimiters. Preserve the two LaTeX delimiter
@@ -55,9 +55,9 @@ md.inline.ruler.before("escape", "latex-delimiters", (state, silent) => {
   state.pos = end + 2;
   return true;
 });
-function markdown(str, key = "", assets = [], reading = false) {
+function markdown(str, key = "", assets = [], reading = false, image = asset => imageRoute(key, asset)) {
   const node = div(reading ? "md reading-text" : "md");
-  node.innerHTML = md.render(str, {key, assets: new Map(assets.map(a => [a.path, a]))});
+  node.innerHTML = md.render(str, {image, assets: new Map(assets.map(a => [a.path, a]))});
   window.renderMathInElement(node, {
     delimiters: [
       {left: "$$", right: "$$", display: true}, {left: "\\[", right: "\\]", display: true},
@@ -67,16 +67,16 @@ function markdown(str, key = "", assets = [], reading = false) {
   });
   return node;
 }
-function figures(str, key, assets) {
+function figures(str, key, assets, image = asset => imageRoute(key, asset)) {
   return assets.filter(a => !str.includes(a.path) && !str.includes(encodeURI(a.path))).map(a =>
     element("figure", {class: "embedded-figure"},
-      element("img", {src: imageRoute(key, a), alt: a.alt, loading: "lazy"}),
+      element("img", {src: image(a), alt: a.alt, loading: "lazy"}),
       text("figcaption", a.alt)));
 }
 
-async function api(path, body) {
-  const opts = body === undefined ? {} : {
-    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+async function api(path, body, {keepalive = false, signal} = {}) {
+  const opts = body === undefined ? {signal} : {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body), keepalive, signal,
   };
   const result = await fetch(path, opts);
   const data = await result.json();
@@ -89,7 +89,7 @@ async function updateHome() {
   $("#open-import").hidden = home.demo;
   const status = $("#grader-status");
   status.textContent = home.demo ? "Temporary demo" : "Local workspace";
-  status.title = home.grader ? "Advisory local feedback enabled" : "Local feedback off";
+  status.title = home.grader ? "Local model configured. Check status in Settings." : "Local model off";
 }
 function toast(message) {
   clearTimeout(showingToast);
@@ -151,7 +151,7 @@ const importFiles = async (e) => {
     $("#import-dialog").close();
     toast(item.added ? "Imported " + item.title : "Already in your library");
     await updateHome();
-    location.hash = routeFor(item.key);
+    location.hash = item.test ? testRoute(item.key) : routeFor(item.key);
   } catch (err) {
     status.textContent = err.message;
     status.classList.add("error");
@@ -234,7 +234,7 @@ function svgNode(tag, attrs, value) {
 }
 async function render({focus = false} = {}) {
   const version = ++renderVersion;
-  for (const dialog of document.querySelectorAll("#problem-picker[open], #support-dialog[open]")) dialog.close();
+  for (const dialog of document.querySelectorAll("#problem-picker[open], #support-dialog[open], #appearance-dialog[open]")) dialog.close();
   disposePage?.();
   disposePage = null;
   main.setAttribute("aria-busy","true");
@@ -245,7 +245,16 @@ async function render({focus = false} = {}) {
     // The workspace views summarize the database, including work just saved on another screen.
     if (!home || !isPack) await updateHome();
     if (renderVersion !== version) return;
-    if (isPack) {
+    if (parts[0] === "test" && /^[a-f0-9]{64}$/.test(parts[1] || "")) {
+      const [_, key, id, question] = parts;
+      const state = await api(testApi(key, id));
+      if (renderVersion !== version) return;
+      delete main.dataset.readerView;
+      const view = !id ? "test-setup" : state.status === "active" ? "test-run" : "test-result";
+      paintWorkspace(view, state.test.course, "", state.test);
+      if (!id) testSetup(state);
+      else disposePage = state.status === "active" ? activeTest(state, question) : testResult(state);
+    } else if (isPack) {
       const key = parts[1];
       let pack = packCache.get(key);
       if (!pack) { pack = await api("/api/pack/"+key); packCache.set(key,pack); }
@@ -254,7 +263,7 @@ async function render({focus = false} = {}) {
       const state = await api("/api/solver/" + key + "/" + encodeURIComponent(pid));
       if (renderVersion === version) {
         paintWorkspace("problem", pack.course, pack.key);
-        solver(pack,pid,state);
+        disposePage = solver(pack, pid, state);
       }
     } else {
       delete main.dataset.readerView;
@@ -265,7 +274,7 @@ async function render({focus = false} = {}) {
           : "/api/study/independent/" + encodeURIComponent(key));
         if (renderVersion !== version) return;
         paintWorkspace("course", course, key);
-        studyDetail(data, course, home);
+        disposePage = studyDetail(data, course, home);
         openStudyProblems = parts[2] === "problems";
       } else if (parts[0] === "study") {
         paintWorkspace("study");

@@ -21,16 +21,28 @@ function attemptViews(pack, task, initial) {
   };
   async function feedback(a) {
     if (busy) return;
+    if (!live.isConnected) return;
     busy = true;
-    live.replaceChildren(text("p","Checking your answer against the reviewed key…","muted"));
+    const interim = element("div", {class: "feedback", "aria-hidden": "true", hidden: ""},
+      text("p", "Local AI feedback · provisional", "eyebrow"));
+    const preview = modelTextPreview(["feedback", "next_step"], {lang: pack.language,
+      onReveal: () => { interim.hidden = false; }});
+    interim.append(preview.node);
+    live.replaceChildren(text("p", "Checking locally against the reviewed key…", "small muted"), interim);
     paint();
     try {
-      const graded = await api("/api/feedback", {id: a.id});
-      live.replaceChildren(showFeedback(graded.feedback));
-      await refetch();
+      const graded = await requestLocalModel("/api/feedback", {id: a.id}, {onText: preview.push});
+      if (live.isConnected) {
+        live.replaceChildren(showFeedback(graded.feedback));
+        await refetch();
+      }
     } catch (err) {
-      live.replaceChildren(text("p", err.message, "error"));
-    } finally { busy = false; paint(); }
+      if (live.isConnected) live.replaceChildren(text("p", err.message, "error"));
+    } finally {
+      preview.clear();
+      busy = false;
+      if (live.isConnected) paint();
+    }
   }
   async function exportSelected() {
     try {
@@ -55,14 +67,17 @@ function attemptViews(pack, task, initial) {
       return el;
     };
     const details = attempts.map(a => {
+      const explanation = a.support_used.includes("explanation");
+      const assistance = a.assistance === "prompted" && explanation ? "Study help opened" : assistanceNames[a.assistance];
       const label = new Date(a.submitted_at).toLocaleString(undefined, {dateStyle:"medium",timeStyle:"short"});
       const grade = a.feedback ? showFeedback(a.feedback) : null;
       const doCheck = home.grader && task.can_check && !a.feedback
         ? button("Check locally", () => feedback(a)) : null;
       if (doCheck) doCheck.disabled = busy;
       return element("article", {class:"attempt"},
-        div("card-top", element("label",{class:"row"},check(a),text("span",label)), pill(assistanceNames[a.assistance])),
-        element("details", {}, element("summary", {}, "View saved answer"), text("pre", a.answer, "reading-text"), grade),
+        div("card-top", element("label",{class:"row"},check(a),text("span",label)), pill(assistance)),
+        element("details", {}, element("summary", {}, "View saved answer"), text("pre", a.answer, "reading-text"),
+          explanation && a.assistance !== "prompted" ? text("p", "Study help also opened.", "small muted") : null, grade),
         div("row", doCheck, button("Forget attempt", async () => {
           if (!window.confirm("Remove this answer and its feedback from your local history?")) return;
           try {
